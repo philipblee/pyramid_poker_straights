@@ -7,7 +7,7 @@ function sortCardsForDisplay(cards, handStrength) {
     const handType = handStrength?.handType || handStrength?.rank || 1;
 
     // For straights (types 5, 9): Keep sequential order
-    if (handType === 5 || handType === 9) {
+    if (handType === 6 || handType === 9) {
         // Already in correct order from evaluation, just return
         return [...cards];
     }
