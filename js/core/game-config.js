@@ -13,7 +13,7 @@ class GameConfig {
             deckCount: 2,                    //7 Number of standard decks (1-3)
             autoArrangeAllowed: 'yes',       //8
             findAutoEnabled: 'yes',          //9
-            winProbabilityMethod: 'tiered2', //10 'points', 'empirical', 'tiered', 'tiered2', "netEV"
+            winProbabilityMethod: 'points', //10 'points', 'empirical', 'tiered', 'tiered2', "netEV"
             rounds: 3,                       //11 Number of rounds to play
             currentRound: 0,                 //12 Track current round
 
