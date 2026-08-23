@@ -16,7 +16,7 @@ class DeckManager {
             throw new Error(`Not enough cards in deck. Requested: ${numCards}, Available: ${this.deck.length}`);
         }
 
-        // 🔍 ADD THESE LOGS:
+        // 🔍 ADD THESE LOGS
 //        console.log(`🎴 dealCards() called - requesting ${numCards} cards`);
 //        console.log(`🎴 Deck size before deal: ${this.deck.length}`);
 
