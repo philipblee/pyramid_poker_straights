@@ -7,13 +7,13 @@
 
 // Your web app's Firebase configuration
 const firebaseConfig = {
-  apiKey: "AIzaSyAyf-WOaoUfXf1HYWE8lUxniwpgiAvr7f0",
-  authDomain: "pyramid-poker-online.firebaseapp.com",
-  databaseURL: "https://pyramid-poker-online-default-rtdb.firebaseio.com/",  // ADD THIS
-  projectId: "pyramid-poker-online",
-  storageBucket: "pyramid-poker-online.firebasestorage.app",
-  messagingSenderId: "1062213831120",
-  appId: "1:1062213831120:web:f39c0984d84f54943f51d5"
+  apiKey: "AIzaSyABHwEeiywm_dFSQo0whN-hCQT0yziw8fU",
+  authDomain: "pyramid-poker-straights.firebaseapp.com",
+  databaseURL: "https://pyramid-poker-straights-default-rtdb.firebaseio.com/",
+  projectId: "pyramid-poker-straights",
+  storageBucket: "pyramid-poker-straights.firebasestorage.app",
+  messagingSenderId: "347706752532",
+  appId: "1:347706752532:web:a261304871487755623101"
 };
 
 // Initialize Firebase

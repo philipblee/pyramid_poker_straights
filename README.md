@@ -1,1 +1,1 @@
-Pyramid_Poker_Online is a variant on Chinese Poker
+Pyramid_Poker_Straights is a variant on Chinese Poker

@@ -1,5 +1,5 @@
 {
-  "name": "pyramid-poker-online",
+  "name": "pyramid-poker-straights",
   "version": "5.9.0",
   "description": "Chinese Poker variant game",
   "main": "game.js",
@@ -21,6 +21,6 @@
   "devDependencies": {},
   "repository": {
     "type": "git",
-    "url": "https://github.com/philipblee/pyramid_poker_online.git"
+    "url": "https://github.com/philipblee/pyramid_poker_straights.git"
   }
 }
