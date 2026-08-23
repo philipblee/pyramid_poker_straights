@@ -134,10 +134,10 @@ function getFlushHand(analysis) {
     const values = analysis.getSortedValues();
     const sortedCards = getStandardSortedCards(analysis.cards);  // ← ADD
     const flushSuit = getSuitValues([sortedCards[0]]);  // ← CHANGE
-    const handRankArray = [6, ...values, ...flushSuit];
+    const handRankArray = [5, ...values, ...flushSuit];
     return {
         name: 'Flush',
-        handType: 6,
+        handType: 5,
         handStrength: handRankArray
     };
 }
@@ -147,10 +147,10 @@ function getStraightHand(analysis) {
     const straightInfo = analysis.getStraightInfo();
     const sortedCards = getStandardSortedCards(analysis.cards);  // ← ADD
     const allSuitValues = getSuitValues(sortedCards);  // ← CHANGE
-    const handRankArray = [5, straightInfo.high, straightInfo.secondHigh, ...allSuitValues];
+    const handRankArray = [6, straightInfo.high, straightInfo.secondHigh, ...allSuitValues];
     return {
         name: 'Straight',
-        handType: 5,
+        handType: 6,
         handStrength: handRankArray
     };
 }
@@ -787,12 +787,12 @@ function tryForFlushWithWilds(normalCards, wildCount) {
                 values.sort((a, b) => b - a); // Keep sorted
             }
 
-            const handRankArray = [6, ...values.slice(0, 5)];
+            const handRankArray = [5, ...values.slice(0, 5)];
             return {
 //                rank: 6,
 //                hand_rank: handRankArray,
                 name: 'Flush (Wild)',
-                handType: 6,
+                handType: 5,
                 handStrength: handRankArray
             };
         }
@@ -823,12 +823,12 @@ function tryForStraightWithWilds(normalCards, wildCount) {
         const needed = straight.filter(v => !values.includes(v)).length;
         if (needed <= wildCount) {
             const straightInfo = getStraightInfo(straight);
-            const handRankArray = [5, straightInfo.high, straightInfo.secondHigh];
+            const handRankArray = [6, straightInfo.high, straightInfo.secondHigh];
             return {
 //                rank: 5,
 //                hand_rank: handRankArray,
                 name: 'Straight (Wild)',
-                handType: 5,
+                handType: 6,
                 handStrength: handRankArray
             };
         }
