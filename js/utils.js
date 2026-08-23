@@ -138,8 +138,8 @@ function getFrontBonus(evaluation) {
     if (evaluation.handType === 9) return ' (+14 bonus)';  // Straight Flush
     if (evaluation.handType === 8) return ' (+11 bonus)';  // Four of a Kind
     if (evaluation.handType === 7) return ' (+4 bonus)';   // Full House
-    if (evaluation.handType === 6) return ' (+3 bonus)';   // Flush
-    if (evaluation.handType === 5) return ' (+3 bonus)';   // Straight
+    if (evaluation.handType === 6) return ' (+3 bonus)';   // Straight
+    if (evaluation.handType === 5) return ' (+3 bonus)';   // Flush
     return '';
 }
 
