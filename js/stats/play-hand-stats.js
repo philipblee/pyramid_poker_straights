@@ -179,7 +179,7 @@ class PlayHandStats {
         // Back hand comparison
         const back1 = evaluateHand(arrangement1.back.cards);
         const back2 = evaluateHand(arrangement2.back.cards);
-        const backComparison = compareTuples(back1.hand_rank, back2.hand_rank);
+        const backComparison = compareTuples(back1.handStrength, back2.handStrength);
         let backResult = 'tie';
 
         if (backComparison > 0) {
@@ -204,7 +204,7 @@ class PlayHandStats {
         // Middle hand comparison
         const middle1 = evaluateHand(arrangement1.middle.cards);
         const middle2 = evaluateHand(arrangement2.middle.cards);
-        const middleComparison = compareTuples(middle1.hand_rank, middle2.hand_rank);
+        const middleComparison = compareTuples(middle1.handStrength, middle2.handStrength);
         let middleResult = 'tie';
 
         if (middleComparison > 0) {
@@ -229,7 +229,7 @@ class PlayHandStats {
         // Front hand comparison
         const front1 = evaluateThreeCardHand(arrangement1.front.cards);
         const front2 = evaluateThreeCardHand(arrangement2.front.cards);
-        const frontComparison = compareTuples(front1.hand_rank, front2.hand_rank);
+        const frontComparison = compareTuples(front1.handStrength, front2.handStrength);
         let frontResult = 'tie';
 
         if (frontComparison > 0) {
