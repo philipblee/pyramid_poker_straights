@@ -7,7 +7,7 @@
  * @param {Array} cardObjects - Array of 17 card objects (including 2 wilds)
  * @returns {Object} Best arrangement result (same format as one-wild version)
  */
-function FindBestSetupTwoWild(cardObjects) {
+function FindBestSetupTwoWild(cardObjects, options = {}) {
 //    console.log(`\n🧠 ======== TWO WILD SMART ARRANGEMENT - FROM CARDS ========`);
 
     // STEP 1: Convert to Card Model format FIRST
@@ -90,7 +90,7 @@ function FindBestSetupTwoWild(cardObjects) {
             // ✅ Should read from game-config:
             const flag = window.gameConfig?.config?.winProbabilityMethod || 'tiered';
 
-            const finder = createFindBestSetupNoWild(flag);
+            const finder = createFindBestSetupNoWild(flag, options);
             finder.bestScore = globalBestScore;  // ← MOVE THIS UP
             const result = finder.findBestSetupNoWild(cards);  // ← runs seeded
 

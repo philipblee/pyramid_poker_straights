@@ -7,7 +7,7 @@
  * @param {Array} cardObjects - Array of 17 card objects (including 1 wild)
  * @returns {Object} Best arrangement result (same format as brute force version)
  */
-function FindBestSetupOneWild(cardObjects) {
+function FindBestSetupOneWild(cardObjects, options = {}) {
 //    console.log(`\n🧠 ======== ONE WILD SMART ARRANGEMENT - FROM CARDS ========`);
 
     // STEP 1: Convert to Card Model format FIRST
@@ -78,7 +78,7 @@ function FindBestSetupOneWild(cardObjects) {
 
             // Updated calling pr ogram
             const flag = window.gameConfig?.config?.winProbabilityMethod || 'tiered';
-            const finder = createFindBestSetupNoWild(flag);
+            const finder = createFindBestSetupNoWild(flag, options);
             finder.bestScore = globalBestScore; // 🔥 SEED with global best
             const arrangementResult = finder.findBestSetupNoWild(cards);
 

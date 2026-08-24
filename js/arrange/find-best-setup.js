@@ -52,11 +52,11 @@ class FindBestSetup {
 
             } else if (wildCount === 1) {
 //                console.log(`🃏 One wild card - using one-wild solver...`);
-                result = this.oneWild(allCards);
+                result = this.oneWild(allCards, options);
 
             } else if (wildCount === 2) {
 //                console.log(`🃏🃏 Two wild cards - using two-wild solver...`);
-                result = this.twoWild(allCards);
+                result = this.twoWild(allCards, options);
 
 
 
@@ -99,8 +99,8 @@ class FindBestSetup {
      * @param {Array} allCards - 17 card objects with 1 wild
      * @returns {Object} Arrangement result
      */
-    oneWild(allCards) {
-        return FindBestSetupOneWild(allCards);
+    oneWild(allCards, options = {}) {
+        return FindBestSetupOneWild(allCards, options);
     }
 
     /**
@@ -108,8 +108,8 @@ class FindBestSetup {
      * @param {Array} allCards - 17 card objects with 2 wilds
      * @returns {Object} Arrangement result
      */
-    twoWild(allCards) {
-        return FindBestSetupTwoWild(allCards);
+    twoWild(allCards, options = {}) {
+        return FindBestSetupTwoWild(allCards, options);
     }
     /**
      * Handle hands with 3+ wild cards (fallback)
