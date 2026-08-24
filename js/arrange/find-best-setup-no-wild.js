@@ -3,17 +3,18 @@
 // Starts with strongest hands and uses pruning to avoid exhaustive search
 
 class FindBestSetupNoWildBase {
-    constructor() {
+    constructor(options = {}) {
         this.bestScore = -Infinity;
         this.bestArrangement = null;
         this.exploredNodes = 0;
         this.prunedNodes = 0;
 
-        // ADD THESE: The higher the maxTopN and pruningBuffer, the longer it takes
-        // Use these parameters to analyze multiple arrangements per hand
+        // Default true to preserve existing "BEST" button UI behavior unchanged
+        this.collectTopArrangements = options.collectTopArrangements !== false;
+
         this.topArrangements = [];  // Array to track top N arrangements
         this.maxTopN = 5;          // Keep top n arrangememts
-        this.pruningBuffer = 2;    // Allow arrangements within n points of best
+        this.pruningBuffer = 2;    // Allow arrangements within n points of best — UNCHANGED, correctness-relevant
 
     }
 
@@ -66,7 +67,7 @@ class FindBestSetupNoWildBase {
         }
 
         // Before your return statement (it's already sorting, just add the filter):
-        if (this.topArrangements && this.topArrangements.length > 0) {
+        if (this.collectTopArrangements && this.topArrangements && this.topArrangements.length > 0) {
             this.topArrangements = this.getStrategicallyDifferentArrangements(this.topArrangements);
             this.topArrangements.sort((a, b) => b.score - a.score);
         }
@@ -323,9 +324,11 @@ class FindBestSetupNoWildBase {
 //            // ADD THIS LINE AFTER THE ABOVE BLOCK:
 //            this.updateTopArrangements(arrangement, score);
             // In searchFrontHands (or wherever you call updateTopArrangements):
-            const clonedArrangement = JSON.parse(JSON.stringify(arrangement));
-            const completedArrangement = this.addKickersToArrangement(clonedArrangement);
-            this.updateTopArrangements(completedArrangement, completedArrangement.score);
+            if (this.collectTopArrangements) {
+                const clonedArrangement = JSON.parse(JSON.stringify(arrangement));
+                const completedArrangement = this.addKickersToArrangement(clonedArrangement);
+                this.updateTopArrangements(completedArrangement, completedArrangement.score);
+            }
 
         }
     }

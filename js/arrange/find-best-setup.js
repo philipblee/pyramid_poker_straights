@@ -24,7 +24,7 @@ class FindBestSetup {
      * @param {Array} allCards - Array of 17 card objects (Card Model format)
      * @returns {Object} Best arrangement result (Arrangement Model format)
      */
-    findBestSetup(allCards) {
+    findBestSetup(allCards, options = {}) {
 //        console.log(`🎯 FindBestSetup: Analyzing 17 cards for optimal arrangement...`);
 
         // Validate input
@@ -48,7 +48,7 @@ class FindBestSetup {
 
             if (wildCount === 0) {
 //                console.log(`📊 No wild cards - using no-wild solver...`);
-                result = this.noWild(allCards);
+                result = this.noWild(allCards, options);
 
             } else if (wildCount === 1) {
 //                console.log(`🃏 One wild card - using one-wild solver...`);
@@ -88,9 +88,9 @@ class FindBestSetup {
      * @param {Array} allCards - 17 card objects with 0 wilds
      * @returns {Object} Arrangement result
      */
-    noWild(allCards) {
+    noWild(allCards, options = {}) {
         const flag = window.gameConfig?.config?.winProbabilityMethod || 'tiered';
-        const finder = createFindBestSetupNoWild(flag);
+        const finder = createFindBestSetupNoWild(flag, options);
         return finder.findBestSetupNoWild(allCards);
     }
 
@@ -497,7 +497,7 @@ class FindBestSetup {
  * @param {Array} allCards - 17 card objects
  * @returns {Object} Best arrangement result
  */
-function findBestSetup(allCards) {
+function findBestSetup(allCards, options = {}) {
     const finder = new FindBestSetup();
-    return finder.findBestSetup(allCards);
+    return finder.findBestSetup(allCards, options);
 }

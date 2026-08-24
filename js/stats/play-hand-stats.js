@@ -43,7 +43,7 @@ class PlayHandStats {
                 const preAnalysis = countValidHandsFromCards(cards);
 
                 // Find best arrangement
-                const arrangement = findBestSetup(cards);
+                const arrangement = findBestSetup(cards, { collectTopArrangements: false });
                 const { wildCards } = CardUtilities.separateWildCards(cards);
 
                 // Store player data

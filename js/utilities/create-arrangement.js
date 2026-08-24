@@ -31,24 +31,24 @@ function createArrangement(back, middle, front, score, stagingCards, isValid = t
     };
 }
 
-function createFindBestSetupNoWild(flag) {
+function createFindBestSetupNoWild(flag, options = {}) {
 
 //      console.log('🏭 Factory creating optimizer for method:', flag);
       switch (flag) {
         case 'points':
-            return new FindBestSetupNoWildPoints();
+            return new FindBestSetupNoWildPoints(options);
         case 'tiered':
-            return new FindBestSetupNoWildTiered();
+            return new FindBestSetupNoWildTiered(options);
         case 'tiered2':
-            return new FindBestSetupNoWildTiered2();
+            return new FindBestSetupNoWildTiered2(options);
         case 'best-back':
-            return new FindBestSetupNoWildBestBack();
+            return new FindBestSetupNoWildBestBack(options);
         case 'best-middle':
-            return new FindBestSetupNoWildBestMiddle();
+            return new FindBestSetupNoWildBestMiddle(options);
         case 'best-front':
-            return new FindBestSetupNoWildBestFront();
+            return new FindBestSetupNoWildBestFront(options);
         case 'empirical':
         default:
-            return new FindBestSetupNoWildEmpirical();  // ← Fix this line
+            return new FindBestSetupNoWildEmpirical(options);  // ← Fix this line
       }
 }
