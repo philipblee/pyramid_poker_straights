@@ -13,7 +13,7 @@ let tableSettings = {
     rounds:10,
     wildCardCount: 2,
     deckCount: 2,
-    winProbabilityMethod: 'points',  // NEW - added AI method
+    winProbabilityMethod: 'tiered2',  // NEW - added AI method
     rounds: 5,           // NEW - changed from totalRounds
     // Table/Lobby settings
     maxPlayers: 6,                   // Maximum players allowed at table (2-6)
@@ -47,7 +47,7 @@ const defaultTables = [
                     gameVariant: 'no-surrender',
                     computerPlayers: 1,
                     wildCardCount: 2,
-                    winProbabilityMethod: 'points' ,
+                    winProbabilityMethod: 'tiered2' ,
                     findAutoEnabled: 'yes' },
         icon: '🏓'
     },
@@ -65,7 +65,7 @@ const defaultTables = [
                     rounds: 3,
                     computerPlayers: 1,
                     wildCardCount: 1,
-                    winProbabilityMethod: 'points' ,
+                    winProbabilityMethod: 'tiered2' ,
                     findAutoEnabled: 'yes' },
         icon: '🏓'
     },
@@ -82,7 +82,7 @@ const defaultTables = [
                     computerPlayers: 2,
                     rounds: 3,
                     wildCardCount: 2,
-                    winProbabilityMethod: 'points' ,
+                    winProbabilityMethod: 'tiered2' ,
                     findAutoEnabled: 'no' },
         icon: '🏓'
     },
@@ -99,7 +99,7 @@ const defaultTables = [
                     computerPlayers: 2,
                     rounds: 3,
                     wildCardCount: 2,
-                    winProbabilityMethod: 'points' ,
+                    winProbabilityMethod: 'tiered2' ,
                     findAutoEnabled: 'no' },
         icon: '🏓'
     },
@@ -116,7 +116,7 @@ const defaultTables = [
                     computerPlayers: 5,
                     rounds: 3,
                     wildCardCount: 2,
-                    winProbabilityMethod: 'points',
+                    winProbabilityMethod: 'tiered2',
                     autoArrangeAllowed: 'no',
                     findAutoEnabled: 'no' },
         icon: '🏓'
@@ -134,7 +134,7 @@ const defaultTables = [
                     computerPlayers: 5,
                     rounds: 3,
                     wildCardCount: 2,
-                    winProbabilityMethod: 'points',
+                    winProbabilityMethod: 'tiered2',
                     autoArrangeAllowed: 'no',
                     findAutoEnabled: 'no' },
         icon: '🏓'
@@ -152,7 +152,7 @@ const defaultTables = [
                     computerPlayers: 0,
                     wildCardCount: 2,
                     maxPlayers: 6,
-                    winProbabilityMethod: 'points' ,
+                    winProbabilityMethod: 'tiered2' ,
                     findAutoEnabled: 'yes' },
         icon: '☁️'
     },
@@ -169,7 +169,7 @@ const defaultTables = [
                     computerPlayers: 0,
                     wildCardCount: 2,
                     maxPlayers: 6,
-                    winProbabilityMethod: 'points' ,
+                    winProbabilityMethod: 'tiered2' ,
                     findAutoEnabled: 'yes' },
         icon: '☁️'
     },
@@ -188,7 +188,7 @@ const defaultTables = [
                     deckCount: 3,
                     wildCardCount: 3,
                     rounds: 5,
-                    winProbabilityMethod: 'points' ,
+                    winProbabilityMethod: 'tiered2' ,
                     findAutoEnabled: 'no' },
         icon: '☁️'
     },
@@ -208,7 +208,7 @@ const defaultTables = [
                     deckCount: 3,
                     wildCardCount: 3,
                     rounds: 5,
-                    winProbabilityMethod: 'points' ,
+                    winProbabilityMethod: 'tiered2' ,
                     findAutoEnabled: 'no' },
         icon: '☁️'
     },
@@ -225,7 +225,7 @@ const defaultTables = [
                     computerPlayers: 0,
                     wildCardCount: 2,
                     maxPlayers: 6,
-                    winProbabilityMethod: 'points',
+                    winProbabilityMethod: 'tiered2',
                     autoArrangeAllowed: 'no',
                     findAutoEnabled: 'no' },
         icon: '☁️'
@@ -243,7 +243,7 @@ const defaultTables = [
                     computerPlayers: 0,
                     wildCardCount: 2,
                     maxPlayers: 6,
-                    winProbabilityMethod: 'points',
+                    winProbabilityMethod: 'tiered2',
                     autoArrangeAllowed: 'no',
                     findAutoEnabled: 'no' },
         icon: '☁️'

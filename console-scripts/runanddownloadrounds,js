@@ -1,0 +1,22 @@
+async function runAndDownloadRounds(numRounds, playerCount = 6, wildCount = 2) {
+    const stats = new PlayHandStats();
+    const allRounds = [];
+    for (let i = 0; i < numRounds; i++) {
+        const result = stats.playHandStats(playerCount, wildCount);
+        if (!result.error) {
+            allRounds.push(result);
+        }
+        if (i % 100 === 0) {
+            console.log(`Progress: ${i}/${numRounds} rounds complete`);
+        }
+    }
+    console.log(`✅ Done: ${allRounds.length}/${numRounds} rounds succeeded`);
+    const blob = new Blob([JSON.stringify(allRounds)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `pyramid-poker-straights-${numRounds}-rounds.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+    return allRounds;
+}
