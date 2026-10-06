@@ -13,7 +13,7 @@ let tableSettings = {
     rounds:10,
     wildCardCount: 2,
     deckCount: 2,
-    winProbabilityMethod: 'tiered2',  // NEW - added AI method
+    winProbabilityMethod: 'netEV',  // NEW - added AI method
     rounds: 5,           // NEW - changed from totalRounds
     // Table/Lobby settings
     maxPlayers: 6,                   // Maximum players allowed at table (2-6)

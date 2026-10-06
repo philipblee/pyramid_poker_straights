@@ -356,7 +356,7 @@ function handleIncompleteBackHand(handRank) {
 
     // ✅ FIXED: NetEV values (can be negative, risk-adjusted)
     switch(handType) {
-        case 5: // Straights
+        case 6: // Straights (fork: handType 6 = Straight)
             if (primaryRank >= 14) return 2.20;  // Ace-high
             if (primaryRank >= 13) return 2.15;  // King-high
             if (primaryRank >= 10) return 2.05;  // Medium straights
@@ -365,10 +365,12 @@ function handleIncompleteBackHand(handRank) {
             return primaryRank >= 12 ? 5.70 : 5.50;
         case 7: // Full house - strong
             return primaryRank >= 12 ? 3.85 : 3.65;
-        case 6: // Flush - decent
+        case 5: // Flush (fork: handType 5 = Flush) - decent
             return primaryRank >= 12 ? 1.45 : 1.25;
-        case 3: // Trips - okay in back
+        case 4: // Trips (Three of a Kind) - okay in back
             return primaryRank >= 12 ? 0.85 : 0.65;
+        case 3: // Two Pair - weak in back
+            return primaryRank >= 12 ? -0.25 : -0.65;
         case 2: // Pairs - RISKY in back position
             return primaryRank >= 12 ? -0.85 : -1.25;  // ✅ NEGATIVE
         case 1: // High card - TERRIBLE in back
