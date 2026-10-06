@@ -1,0 +1,12 @@
+{
+  "rules": {
+    ".read": false,
+    ".write": false,
+    "tables": {
+      "$tableId": { ".read": "auth != null", ".write": "auth != null" }
+    },
+    "players": {
+      "$playerKey": { ".read": "auth != null", ".write": "auth != null" }
+    }
+  }
+}
