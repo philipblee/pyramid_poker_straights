@@ -84,15 +84,21 @@ PyramidPoker.prototype.showTournamentSummary = async function(skipRoundByRound =
                     if (sessionDoc.exists) {
                         const { players, tournaments } = sessionDoc.data();
                         const tournamentNumbers = Object.keys(tournaments).map(Number).sort((a, b) => a - b);
-                        playerTotals = {};
-                        players.forEach(p => playerTotals[p] = 0);
+                        const allSessionPlayers = [...players];
                         tournamentNumbers.forEach(n => {
-                            players.forEach(p => {
+                            Object.keys(tournaments[n].scores || {}).forEach(email => {
+                                if (!allSessionPlayers.includes(email)) allSessionPlayers.push(email);
+                            });
+                        });
+                        playerTotals = {};
+                        allSessionPlayers.forEach(p => playerTotals[p] = 0);
+                        tournamentNumbers.forEach(n => {
+                            allSessionPlayers.forEach(p => {
                                 playerTotals[p] += tournaments[n].scores[p] || 0;
                             });
                         });
                         window.sessionTotals = { ...playerTotals };
-                        sessionPlayers = players;
+                        sessionPlayers = allSessionPlayers;
                         sessionTournaments = tournaments;
                         sessionTournamentNumbers = tournamentNumbers;
                     }
