@@ -26,9 +26,8 @@ js/ → arrange, constants, core, firebase, game-flow, hands,
 - `window.isOwner` is the single source of truth for ownership checks
 
 ## Git Workflow
-- `main` — active development
-- `ui-stable` — stable deployed branch (GitHub Pages)
-- Always fix on `main` first, then cherry-pick to `ui-stable`
+- `ui-stable` — deployed branch (GitHub Pages)
+- All work is committed directly to `ui-stable`; `main` is no longer maintained
 - One-line git commits
 
 ## Naming Conventions
