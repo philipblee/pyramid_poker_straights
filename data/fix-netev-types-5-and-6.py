@@ -1,136 +1,158 @@
 #!/usr/bin/env python3
 """
-Rewrite netEV rows for hand types 5 and 6.
+Build this repo's netEV table from the online table's tuple grid.
 
-This game (evaluate-hand.js): 5 = Flush, 6 = Straight.
-The original tuple generator still uses the old numbering (5 = Straight, 6 = Flush)
-and is left unchanged.
+The online file has one row per hand type, rank, and kicker. It also uses the
+old numbering, where 5 is a straight and 6 is a flush. This game (evaluate-hand.js)
+uses 5 for a flush and 6 for a straight. Each online tuple is kept once. Rows
+whose type is 5 or 6 swap numbers, and their netEV is placed between three of
+a kind and a full house at the same rank: flush one third of the way, straight
+two thirds. Every other hand type keeps the online netEV.
 
-For each position and rank, the new win rate sits between the surrounding
-hand types already in the table: three of a kind (4) and full house (7).
-Flush takes one third of that gap. Straight takes two thirds, so a straight
-stays ahead of a flush. NetEV is then points * win rate minus the loss penalty.
-
-Flush highs are 6 through ace. Straight highs are 5 through ace.
+The online file writes each tuple twice. Those duplicate lines are not copied.
 """
 
 import csv
 import re
 from pathlib import Path
 
-CSV_PATH = Path(__file__).with_name('netEV_lookup_table.csv')
+ONLINE_PATH = Path(r'F:\Dropbox\PycharmProjects\pyramid_poker_online\data\netEV_lookup_table.csv')
+OUT_PATH = Path(__file__).with_name('netEV_lookup_table.csv')
 
-# hand-utilities.js point values. Types 5 and 6 are worth the same points;
-# the straight ranks higher because its hand-type number is 6.
-POINTS = {
-    'front': {5: 4, 6: 4},
-    'middle': {5: 1, 6: 1},
-    'back': {5: 1, 6: 1},
-}
-
-FLUSH_RANKS = list(range(14, 5, -1))      # 14 down to 6
-STRAIGHT_RANKS = list(range(14, 4, -1))    # 14 down to 5
-POSITIONS = ('back', 'front', 'middle')
+# Same payout for flush and straight. hand-utilities.js
+POINTS = {'front': 4, 'middle': 1, 'back': 1}
 
 
 def parse_tuple(text):
     return tuple(int(part) for part in re.findall(r'\d+', text))
 
 
-def loss_penalty(position, hand_type):
-    """Same thresholds as ScoringUtilities.getExpectedPoints netEV fallback."""
+def loss_penalty(position):
+    """ScoringUtilities netEV fallback. Types 5 and 6 are in these bands."""
     if position == 'front':
-        return 1 if hand_type >= 3 else 2
+        return 1
     if position == 'middle':
-        return 2 if hand_type >= 5 else 4
-    return 4 if hand_type >= 7 else 6
+        return 2
+    return 6
 
 
-def netev_from_wins(position, hand_type, wins, total):
-    win_rate = wins / total
-    points = POINTS[position][hand_type]
-    penalty = loss_penalty(position, hand_type)
-    return (win_rate * points) - ((1 - win_rate) * penalty)
+def nearest_rank(table, rank):
+    if rank in table:
+        return table[rank]
+    return table[min(table, key=lambda existing: abs(existing - rank))]
 
 
-def nearest(by_rank, rank):
-    if rank in by_rank:
-        return by_rank[rank]
-    return by_rank[min(by_rank, key=lambda existing: abs(existing - rank))]
+def load_online():
+    unique = {}
+    with ONLINE_PATH.open(newline='', encoding='utf-8') as handle:
+        for row in csv.DictReader(handle):
+            position = row['position'].strip()
+            tup = parse_tuple(row['hand_rank_tuple'])
+            unique[(position, tup)] = {
+                'position': position,
+                'tuple': tup,
+                'wins': row['wins'],
+                'total': row['total_matchups'],
+                'netev': float(row['netev']),
+            }
+    return list(unique.values())
 
 
-def interpolated_wins(low_row, high_row, share):
-    low_wins, low_total = low_row
-    high_wins, high_total = high_row
-    low_rate = low_wins / low_total
-    high_rate = high_wins / high_total
-    total = low_total
-    wins = round((low_rate + (high_rate - low_rate) * share) * total)
-    return max(0, min(total, wins)), total
+def index_neighbors(rows):
+    trips = {}
+    houses = {}
+    houses_by_rank = {}
+    for row in rows:
+        position, tup, netev = row['position'], row['tuple'], row['netev']
+        if tup[0] == 4 and len(tup) >= 2:
+            trips[(position, tup[1])] = netev
+        elif tup[0] == 7 and len(tup) >= 3:
+            houses[(position, tup[1], tup[2])] = netev
+            houses_by_rank.setdefault((position, tup[1]), []).append(netev)
+    return trips, houses, houses_by_rank
+
+
+def between_neighbors(position, primary, secondary, share, trips, houses, houses_by_rank):
+    trip_table = {rank: value for (pos, rank), value in trips.items() if pos == position}
+    low = nearest_rank(trip_table, primary)
+    if (position, primary, secondary) in houses:
+        high = houses[(position, primary, secondary)]
+    else:
+        ranked = {rank: sum(values) / len(values)
+                  for (pos, rank), values in houses_by_rank.items() if pos == position}
+        high = nearest_rank(ranked, primary)
+    return low + (high - low) * share
+
+
+def wins_for_netev(position, netev):
+    points = POINTS[position]
+    penalty = loss_penalty(position)
+    rate = (netev + penalty) / (points + penalty)
+    rate = min(1.0, max(0.0, rate))
+    return str(round(rate * 1000)), '1000'
 
 
 def main():
-    with CSV_PATH.open(newline='', encoding='utf-8') as handle:
-        reader = csv.DictReader(handle)
-        fieldnames = reader.fieldnames
-        kept = []
-        neighbors = {4: {}, 7: {}}
-        removed = 0
-        for row in reader:
-            tup = parse_tuple(row['hand_rank_tuple'])
+    rows = load_online()
+    trips, houses, houses_by_rank = index_neighbors(rows)
+
+    written = []
+    swapped = 0
+    for row in rows:
+        tup = row['tuple']
+        hand_type = tup[0]
+        if hand_type == 5:
+            hand_type = 6
+            share = 2 / 3
+        elif hand_type == 6:
+            hand_type = 5
+            share = 1 / 3
+        else:
             hand_type = tup[0]
-            if hand_type in (5, 6):
-                removed += 1
-                continue
-            kept.append(row)
-            if hand_type in (4, 7) and len(tup) >= 2:
-                neighbors[hand_type][(row['position'].strip(), tup[1])] = (
-                    int(row['wins']),
-                    int(row['total_matchups']),
-                )
+            share = None
 
-    added = []
-    for position in POSITIONS:
-        for hand_type, ranks, share in (
-            (5, FLUSH_RANKS, 1 / 3),
-            (6, STRAIGHT_RANKS, 2 / 3),
-        ):
-            for rank in ranks:
-                low = nearest(dict_for(neighbors[4], position), rank)
-                high = nearest(dict_for(neighbors[7], position), rank)
-                wins, total = interpolated_wins(low, high, share)
-                netev = netev_from_wins(position, hand_type, wins, total)
-                added.append({
-                    'position': position,
-                    'hand_rank_tuple': f'({hand_type}, {rank})',
-                    'wins': str(wins),
-                    'total_matchups': str(total),
-                    'netev': f'{netev:.6f}',
-                })
+        if share is None:
+            netev = row['netev']
+            wins, total = row['wins'], row['total']
+        else:
+            swapped += 1
+            netev = between_neighbors(
+                row['position'], tup[1], tup[2], share, trips, houses, houses_by_rank
+            )
+            wins, total = wins_for_netev(row['position'], netev)
 
-    position_order = {name: index for index, name in enumerate(POSITIONS)}
-    rows = kept + added
+        new_tuple = (hand_type,) + tup[1:]
+        written.append({
+            'position': row['position'],
+            'hand_rank_tuple': f'({", ".join(str(part) for part in new_tuple)})',
+            'wins': wins,
+            'total_matchups': total,
+            'netev': f'{netev:.6f}',
+            '_sort': (row['position'], new_tuple),
+        })
 
-    def sort_key(row):
-        tup = parse_tuple(row['hand_rank_tuple'])
-        primary = tup[1] if len(tup) > 1 else 0
-        return (position_order.get(row['position'].strip(), 9), tup[0], -primary)
+    position_order = {'front': 0, 'middle': 1, 'back': 2}
+    written.sort(key=lambda row: (
+        position_order[row['_sort'][0]],
+        -row['_sort'][1][0],
+        -row['_sort'][1][1],
+        -(row['_sort'][1][2] if len(row['_sort'][1]) > 2 else 0),
+    ))
 
-    rows.sort(key=sort_key)
-
-    with CSV_PATH.open('w', newline='', encoding='utf-8') as handle:
-        writer = csv.DictWriter(handle, fieldnames=fieldnames, quoting=csv.QUOTE_MINIMAL)
+    with OUT_PATH.open('w', newline='', encoding='utf-8') as handle:
+        writer = csv.DictWriter(
+            handle,
+            fieldnames=['position', 'hand_rank_tuple', 'wins', 'total_matchups', 'netev'],
+            lineterminator='\n',
+        )
         writer.writeheader()
-        for row in rows:
+        for row in written:
+            row.pop('_sort')
             writer.writerow(row)
 
-    print(f'Removed {removed} type 5/6 rows')
-    print(f'Added {len(added)} rows ({len(FLUSH_RANKS)} flush and {len(STRAIGHT_RANKS)} straight per position)')
-    print(f'Wrote {len(rows)} rows to {CSV_PATH}')
-
-
-def dict_for(table, position):
-    return {rank: value for (pos, rank), value in table.items() if pos == position}
+    print(f'Unique online tuples: {len(rows)}')
+    print(f'Rewrote {swapped} flush/straight rows')
+    print(f'Wrote {len(written)} rows to {OUT_PATH}')
 
 
 if __name__ == '__main__':
