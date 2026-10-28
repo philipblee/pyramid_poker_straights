@@ -554,9 +554,9 @@ class HandDetector {
         // In addHand:
         // In hand-detector.js addHand() method, right after:
         const preCalculatedScore = {
-            front: -0.82,
-            middle: -1.15,
-            back: -1.27
+            front: -1.85246,
+            middle: -4,
+            back: -6
         };
         // ADD THIS LOG:
 //        console.log(`✅ Created preCalculatedScore for addSingleCardHand: ${handType}:`, preCalculatedScore);
@@ -780,7 +780,15 @@ function calculateMethodScore(handStrength) {
 
     validPositions.forEach(position => {
         if (method === 'netEV') {
-            methodScore[position] = lookupNetEV(position, { hand_rank: handStrength.handStrength });
+            if (window.NETEV_USE_TIERED2_FORMULA) {
+                methodScore[position] = ScoringUtilities.netEVFromTiered2Rate({
+                    hand_rank: handStrength.handStrength,
+                    handType: handStrength.handType,
+                    strength: handStrength.handType
+                }, position);
+            } else {
+                methodScore[position] = lookupNetEV(position, { hand_rank: handStrength.handStrength });
+            }
         }
     });
 

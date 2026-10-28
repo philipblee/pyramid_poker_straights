@@ -486,7 +486,7 @@ class FindBestSetupNoWildBase {
             }
         }
 
-        console.log(`🎯 Filtered ${allArrangements.length} arrangements down to ${uniqueArrangements.length} strategically unique ones`);
+//        console.log(`🎯 Filtered ${allArrangements.length} arrangements down to ${uniqueArrangements.length} strategically unique ones`);
         return uniqueArrangements;
     }
 

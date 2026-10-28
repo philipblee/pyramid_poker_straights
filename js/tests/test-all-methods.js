@@ -79,6 +79,7 @@ function testAllMethods() {
             results[toCamelCase(range.name)].empirical.push(caseResults.empirical);
             results[toCamelCase(range.name)].tiered.push(caseResults.tiered);
             results[toCamelCase(range.name)].tiered2.push(caseResults.tiered2);
+            results[toCamelCase(range.name)].netEV.push(caseResults.netEV);
 
             console.log(`📊 netEV lookups: ${window.lookupCount}, tiered2 lookups: ${window.tiered2LookupCount || 0}`);
 
@@ -246,7 +247,7 @@ function calculateSummaryStats(results) {
     // Count results across all scenarios and methods
     Object.values(results).forEach(scenario => {
         if (typeof scenario === 'object' && scenario.points) {
-            [scenario.points, scenario.empirical, scenario.tiered, scenario.tiered2].forEach(methodResults => {
+            [scenario.points, scenario.empirical, scenario.tiered, scenario.tiered2, scenario.netEV].forEach(methodResults => {
                 methodResults.forEach(result => {
                     if (result.success) totalPassed++;
                     else totalFailed++;

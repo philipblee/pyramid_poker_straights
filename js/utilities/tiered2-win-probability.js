@@ -295,6 +295,15 @@ function lookupTiered2WinProbability(position, hand) {
         return 0.001;
     }
 
+    // Exact full tuple before the 3-number prefix scan. Straights are stored whole.
+    if (Array.isArray(handRank) && handRank.length > 3 && tiered2WinProbability.isLoaded) {
+        const exactKey = tiered2WinProbability.createLookupKey(position, handRank);
+        const exactEntry = tiered2WinProbability.probabilityMap.get(exactKey);
+        if (exactEntry) {
+            return exactEntry.probability;
+        }
+    }
+
     // Try hierarchical fallback - 3 elements, then 2 elements only
     for (let length = Math.min(handRank.length, 3); length >= 2; length--) {
         let truncatedTuple = handRank.slice(0, length);

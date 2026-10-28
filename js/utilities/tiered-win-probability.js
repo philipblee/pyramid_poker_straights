@@ -280,18 +280,13 @@ function lookupTieredWinProbability(position, hand) {
         return 0.001;
     }
 
-    // Try hierarchical fallback - 3 elements, then 2 elements only
-    for (let length = Math.min(handRank.length, 3); length >= 2; length--) {
+    // Full tuple first. Straights are stored whole; shorter prefixes cover flushes and pairs.
+    for (let length = handRank.length; length >= 1; length--) {
         let truncatedTuple = handRank.slice(0, length);
         let probability = tieredWinProbability.getTieredWinProbability(position, truncatedTuple);
 
         if (probability !== null) {
-//            console.log(`🎯 Hierarchical match: level ${length}/${handRank.length} for ${position} [${handRank.join(',')}] → [${truncatedTuple.join(',')}] = ${probability}`);
             return probability;
-        }
-
-        if (probability === null) {
-            return 001;
         }
     }
 

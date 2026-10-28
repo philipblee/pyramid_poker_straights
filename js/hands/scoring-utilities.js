@@ -80,7 +80,10 @@ static getPointsForHand(hand, position, cardCount = null) {
             const strengthBonus = this.calculateTiebreaker(hand.handStrength);
             return pointsIfWin + strengthBonus;
         } else if (actualMethod === 'netEV') {
-            // NEW: Net EV method - uses corrected EV calculations
+            // Batch rebuild scores from the tiered2 win rate. The interpolated table is not used.
+            if (window.NETEV_USE_TIERED2_FORMULA) {
+                return this.netEVFromTiered2Rate(hand, position);
+            }
 //            console.log(`scoringUtilities lookup: ${position}  ${hand.hand_rank}`)
             const netEV = lookupNetEV(position, hand);
 
@@ -128,6 +131,43 @@ static getPointsForHand(hand, position, cardCount = null) {
 
 // And initialize in your startup code:
 // await initializeNetEVLookup();
+
+    static numericHandType(hand) {
+        if (typeof hand.strength === 'number') return hand.strength;
+        if (typeof hand.handType === 'number') return hand.handType;
+        const rank = hand.hand_rank || hand.handStrength?.handStrength;
+        if (Array.isArray(rank) && typeof rank[0] === 'number') return rank[0];
+        if (hand.handStrength && typeof hand.handStrength.handType === 'number') return hand.handStrength.handType;
+        return 0;
+    }
+
+    static seatPoints(hand, position) {
+        const pos = String(position).toLowerCase();
+        const scored = hand.positionScores && hand.positionScores[pos];
+        if (typeof scored === 'number' && !Number.isNaN(scored)) return scored;
+        return handUtilities().getPointValue(this.numericHandType(hand), pos);
+    }
+
+    static lossPenalty(handType, position) {
+        const pos = String(position).toLowerCase();
+        if (pos === 'front') return handType >= 3 ? 1 : 2;
+        if (pos === 'middle') return handType >= 5 ? 2 : 4;
+        return handType >= 7 ? 4 : 6;
+    }
+
+    static netEVFromWinRate(position, handType, winRate, points = null) {
+        const p = (winRate == null || Number.isNaN(Number(winRate))) ? 0 : Number(winRate);
+        const seatPoints = points == null
+            ? handUtilities().getPointValue(handType, String(position).toLowerCase())
+            : points;
+        const penalty = this.lossPenalty(handType, position);
+        return (p * seatPoints) - ((1 - p) * penalty);
+    }
+
+    static netEVFromTiered2Rate(hand, position) {
+        const winProb = this.getWinProbabilityForMethod('tiered2', position, hand);
+        return this.netEVFromWinRate(position, this.numericHandType(hand), winProb, this.seatPoints(hand, position));
+    }
 
     static getWinProbabilityForMethod(method, position, hand) {
         switch(method) {
