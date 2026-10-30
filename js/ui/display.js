@@ -204,6 +204,9 @@ function setupTapToSelect(game) {
 
 // Update game status display
 function updateStatus(game) {
+    // Multiplayer: #status is written only by the owner via Firebase statusMessage
+    if (game.multiDeviceMode) return;
+
     const status = document.getElementById('status');
     const currentPlayer = game.playerManager.getCurrentPlayer();
 
