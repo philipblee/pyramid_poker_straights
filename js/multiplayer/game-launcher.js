@@ -69,7 +69,12 @@ async function launchGameInterface() {
     gameConfig.config.computerPlayers = tableSettings.computerPlayers;
     gameConfig.config.wildCardCount = tableSettings.wildCardCount;
     gameConfig.config.deckCount = tableSettings.deckCount;
-    gameConfig.config.winProbabilityMethod = tableSettings.winProbabilityMethod;
+    const savedAlgo = localStorage.getItem('bestAlgo');
+    gameConfig.config.winProbabilityMethod = savedAlgo || tableSettings.winProbabilityMethod;
+    const bestAlgoSelect = document.getElementById('bestAlgoSelect');
+    if (bestAlgoSelect) {
+        bestAlgoSelect.value = gameConfig.config.winProbabilityMethod;
+    }
     gameConfig.config.rounds = tableSettings.rounds;
     gameConfig.config.gameMode = tableSettings.gameMode;
     gameConfig.config.findAutoEnabled = tableSettings.findAutoEnabled;
