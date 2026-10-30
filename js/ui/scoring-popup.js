@@ -304,7 +304,7 @@ async function showScoringPopup(game, detailedResults, roundScores, specialPoint
     if (window.lastRoundFinancial?.winners) {
         finalPot = window.lastRoundFinancial.pot;
         finalWinners = window.lastRoundFinancial.winners;
-        console.log('🔧 Using corrected financial data for all-surrendered case');
+        console.log('🔧 Using financial data from distributeChips');
     }
 
     const financialHtml = showRoundSummaryForChips(
@@ -332,7 +332,7 @@ async function showScoringPopup(game, detailedResults, roundScores, specialPoint
     const payoutMultiplier = window.gameConfig?.config?.stakesMultiplierAmount || 1;
     const myTotal = playerTotals[userEmail] || 0;
     const myPayout = myTotal * payoutMultiplier;
-    const myPotWin = winners.includes(userEmail) ? Math.floor(pot / winners.length) : 0;
+    const myPotWin = finalWinners.includes(userEmail) ? Math.floor(finalPot / finalWinners.length) : 0;
     const expectedChips = currentChips + myPayout + myPotWin;
 
     // Chip summary for ALL players
@@ -365,7 +365,7 @@ async function showScoringPopup(game, detailedResults, roundScores, specialPoint
         // Calculate changes
         const playerTotal = playerTotals[player.name] || 0;
         const playerPayout = playerTotal * payoutMultiplier;
-        const playerPotWin = winners.includes(player.name) ? Math.floor(pot / winners.length) : 0;
+        const playerPotWin = finalWinners.includes(player.name) ? Math.floor(finalPot / finalWinners.length) : 0;
         const totalChange = playerPayout + playerPotWin;
 
         // Read actual chips after distribution
