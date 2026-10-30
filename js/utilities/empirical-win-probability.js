@@ -277,7 +277,16 @@ const MIDDLE_HIGH_CARD_WIN_PROBABILITIES = {
 
 // Pair probabilities for middle position (adjusted for small sample sizes)
 const MIDDLE_PAIR_WIN_PROBABILITIES = {
+    // PLACEHOLDER: ascending fill so a higher pair never scores lower. No measured data (tiered2/empirical rows are empty or too thin). Replace after a real deal run (scripts/deal-lookup-rounds.js).
+    2: 0.0160,
     3: 0.01628,   // middle,"(2, 3)",35,2150,0.01627906976744186
+    4: 0.01638,
+    5: 0.01648,
+    6: 0.01658,
+    7: 0.01668,
+    8: 0.01678,
+    9: 0.01688,
+    10: 0.01698,
     11: 0.017,    // Adjusted from 0.0 (small sample)
     12: 0.018,    // Adjusted from 0.01429 to maintain order
     13: 0.019,    // Adjusted from 0.0 (small sample)
