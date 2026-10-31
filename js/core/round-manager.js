@@ -306,6 +306,10 @@ PyramidPoker.prototype.initializeTournament = function() {
             firebase.database().ref(`tables/${this.currentTableId}/surrenderDecisions`).remove();
         }
 
+        // Clear surrender notice left over from the previous tournament's last round
+        const surrenderNotice = document.getElementById('surrenderNotice');
+        if (surrenderNotice) surrenderNotice.style.display = 'none';
+
         this.currentRound = 1;
         this.roundHistory = [];
         this.tournamentScores.clear();
