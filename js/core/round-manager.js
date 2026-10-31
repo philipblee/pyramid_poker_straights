@@ -310,6 +310,10 @@ PyramidPoker.prototype.initializeTournament = function() {
         // Clear owner's broadcast message saved from previous tournament
         this.lastOwnerStatusMessage = '';
 
+        // Clear surrender notice left over from the previous tournament's last round
+        const surrenderNotice = document.getElementById('surrenderNotice');
+        if (surrenderNotice) surrenderNotice.style.display = 'none';
+
         // Clear Firebase decisions (owner only)
         if (this.multiDeviceMode && window.isOwner && this.currentTableId) {
             firebase.database().ref(`tables/${this.currentTableId}/surrenderDecisions`).remove();
