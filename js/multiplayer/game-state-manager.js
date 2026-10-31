@@ -412,6 +412,12 @@ function listenForStatusUpdates(tableId) {
             if (message) {
                 console.log('📨 Status message received:', message);
 
+                // Save only the submissions waiting list so validateHands() can append validity text below it
+                if (window.game) {
+                    window.game.lastOwnerStatusMessage =
+                        message.includes('Waiting for submissions:') ? message : '';
+                }
+
                 const statusDiv = document.getElementById('status');
                 if (statusDiv) {
                     statusDiv.innerHTML = message;

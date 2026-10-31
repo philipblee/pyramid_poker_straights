@@ -15,6 +15,9 @@ PyramidPoker.prototype.startNewGame = async function() {
             this.surrenderDecisions.clear();
         }
 
+        // Clear owner's broadcast message saved from previous game
+        this.lastOwnerStatusMessage = '';
+
         // Clear automatic hands from previous game
         if (this.automaticHands) {
             this.automaticHands.clear();
@@ -146,6 +149,9 @@ PyramidPoker.prototype.startNewRound = async function() {
             this.surrenderDecisions.clear();
             console.log('🧹 Cleared local surrender decisions for new round');
         }
+
+        // Clear owner's broadcast message saved from previous round
+        this.lastOwnerStatusMessage = '';
 
         // Clear Firebase decisions (for multi-player)
         if (window.isOwner && window.multiDeviceIntegration) {
@@ -300,6 +306,9 @@ PyramidPoker.prototype.initializeTournament = function() {
         if (this.surrenderDecisions) {
             this.surrenderDecisions.clear();
         }
+
+        // Clear owner's broadcast message saved from previous tournament
+        this.lastOwnerStatusMessage = '';
 
         // Clear Firebase decisions (owner only)
         if (this.multiDeviceMode && window.isOwner && this.currentTableId) {

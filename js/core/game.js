@@ -711,7 +711,11 @@ class PyramidPoker {
                 }
 
                 const readyCount = this.playerManager.getReadyCount();
-                statusDiv.innerHTML = `Round ${this.currentRound} of ${this.maxRounds}.  Player ${currentPlayer.name}'s turn - <span style="color: #4ecdc4; font-weight: bold;">✓ SETUP VALID</span>`;
+                const validText = `<span style="color: #4ecdc4; font-weight: bold;">✓ SETUP VALID</span>`;
+                // Multiplayer: keep the owner's broadcast message and append validity below it
+                statusDiv.innerHTML = (this.multiDeviceMode && this.lastOwnerStatusMessage)
+                    ? `${this.lastOwnerStatusMessage}<br>${validText}`
+                    : `Round ${this.currentRound} of ${this.maxRounds}.  Player ${currentPlayer.name}'s turn - ${validText}`;
             } else {
                 // Invalid order
                 backHand.classList.add('invalid');
@@ -727,7 +731,10 @@ class PyramidPoker {
                 else if (middleVsFront < 0) reason = 'Middle hand must be >= Front hand';
 
                 const readyCount = this.playerManager.getReadyCount();
-                statusDiv.innerHTML = `${currentPlayer.name}'s turn - <span style="color: #ff6b6b; font-weight: bold;">✗ INVALID ORDER</span> - ${reason}! (${readyCount}/${this.playerManager.players.length} players ready)`;
+                const invalidText = `<span style="color: #ff6b6b; font-weight: bold;">✗ INVALID ORDER</span> - ${reason}!`;
+                statusDiv.innerHTML = (this.multiDeviceMode && this.lastOwnerStatusMessage)
+                    ? `${this.lastOwnerStatusMessage}<br>${invalidText}`
+                    : `${currentPlayer.name}'s turn - ${invalidText} (${readyCount}/${this.playerManager.players.length} players ready)`;
             }
         } else {
             // Incomplete setup
@@ -741,7 +748,10 @@ class PyramidPoker {
             const readyCount = this.playerManager.getReadyCount();
             const expectedCards = frontCount === 3 ? 13 : 15;
 
-            statusDiv.innerHTML = `${currentPlayer.name}'s turn - <span style="color: #ffd700; font-weight: bold;">⚠ INCOMPLETE</span> - Need ${expectedCards} cards in play (${totalPlaced}/${expectedCards} placed) (${readyCount}/${this.playerManager.players.length} players ready)`;
+            const incompleteText = `<span style="color: #ffd700; font-weight: bold;">⚠ INCOMPLETE</span> - Need ${expectedCards} cards in play (${totalPlaced}/${expectedCards} placed)`;
+            statusDiv.innerHTML = (this.multiDeviceMode && this.lastOwnerStatusMessage)
+                ? `${this.lastOwnerStatusMessage}<br>${incompleteText}`
+                : `${currentPlayer.name}'s turn - ${incompleteText} (${readyCount}/${this.playerManager.players.length} players ready)`;
         }
 
     return !submitBtn.disabled; // Use the existing submitBtn variable
