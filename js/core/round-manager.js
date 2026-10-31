@@ -160,6 +160,14 @@ PyramidPoker.prototype.startNewRound = async function() {
             if (typeof window.cleanupDecisionListener === 'function') {
                 window.cleanupDecisionListener();
             }
+
+            // Replace last round's status line on all clients
+            const roundStartMessage = gameConfig.config.gameVariant === 'kitty'
+                ? `Round ${this.currentRound} of ${this.maxRounds}<br>Choose PLAY or SURRENDER`
+                : `Round ${this.currentRound} of ${this.maxRounds}: arrange your cards`;
+            await firebase.database()
+                .ref(`tables/${tableId}/statusMessage`)
+                .set(roundStartMessage);
         }
 
         hideDecisionButtons();
