@@ -160,14 +160,6 @@ PyramidPoker.prototype.startNewRound = async function() {
             if (typeof window.cleanupDecisionListener === 'function') {
                 window.cleanupDecisionListener();
             }
-
-            // Replace last round's status line on all clients
-            const roundStartMessage = gameConfig.config.gameVariant === 'kitty'
-                ? `Round ${this.currentRound} of ${this.maxRounds}<br>Choose PLAY or SURRENDER`
-                : `Round ${this.currentRound} of ${this.maxRounds}: arrange your cards`;
-            await firebase.database()
-                .ref(`tables/${tableId}/statusMessage`)
-                .set(roundStartMessage);
         }
 
         hideDecisionButtons();
@@ -313,10 +305,6 @@ PyramidPoker.prototype.initializeTournament = function() {
         if (this.multiDeviceMode && window.isOwner && this.currentTableId) {
             firebase.database().ref(`tables/${this.currentTableId}/surrenderDecisions`).remove();
         }
-
-        // Clear surrender notice left over from the previous tournament's last round
-        const surrenderNotice = document.getElementById('surrenderNotice');
-        if (surrenderNotice) surrenderNotice.style.display = 'none';
 
         this.currentRound = 1;
         this.roundHistory = [];

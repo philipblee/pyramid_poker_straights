@@ -317,11 +317,6 @@ async function handleAllDecided() {
     if (window.game.multiDeviceMode) {
         setTableState(TABLE_STATES.PLAYING);
 
-        // Broadcast the "waiting for" list now; surrendered players already have empty arrangements
-        if (window.isOwner) {
-            window.multiDeviceIntegration.checkAllPlayersSubmitted();
-        }
-
         // Check if LOCAL player surrendered
         const localDecision = window.game.surrenderDecisions.get(window.uniquePlayerName);
         if (localDecision === 'surrender') {

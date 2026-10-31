@@ -219,8 +219,8 @@ function updateStatus(game) {
         if (isDecisionPhase) {
             // Decision phase message
             status.innerHTML = `Round ${roundNum} of ${maxRounds}: ${getCompactName(currentPlayer.name)} - Choose PLAY or SURRENDER, then SUBMIT DECISION`;
-        } else if (!game.multiDeviceMode) {
-            // Normal playing message (multiplayer gets its arrange-phase line from the owner via Firebase)
+        } else {
+            // Normal playing message
             status.innerHTML = `Round ${roundNum} of ${maxRounds}: ${getCompactName(currentPlayer.name)}'s turn to arrange the cards!`;
         }
     }
