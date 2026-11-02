@@ -2,14 +2,31 @@
 // Usage:
 //   node scripts/deal-lookup-rounds.js --method empirical --rounds 10000 --out <file.json>
 //   node scripts/deal-lookup-rounds.js --write-netev <hand_tuple_lookup.csv> <netEV_lookup_table.csv>
+//   node scripts/deal-lookup-rounds.js --match A,B --rounds N --seed S [--start-round R] [--workers W]
 //   --cdf-arrays <path>  CDF arrays for --method cdf and --test-all (default data/cdf_arrays_netev.json)
+//   --seed S             seeded deals: round r's deck comes from a PRNG keyed by (S, r) (batch path only;
+//                        the browser keeps Math.random). --start-round R numbers the first round R (default 0).
+// Batch runs also write <out>.meta.json (method, seed, rounds, git commit, table sha256s, node version, timestamp).
+// --match writes data/matches/match_<A>_vs_<B>_seed<S>_<N>[_start<R>].{json,csv}; pool batches with scripts/pool-matches.js.
 
 const fs = require('fs');
+const os = require('os');
 const path = require('path');
 const vm = require('vm');
+const crypto = require('crypto');
+const { execFileSync, spawn } = require('child_process');
 const { performance } = require('perf_hooks');
+const { matchSummary, formatMatchSummary, matchCsvText, MATCH_SEAT_COUNT } = require('./match-summary.js');
 
 const REPO = path.resolve(__dirname, '..');
+const MATCH_DIR = path.join(REPO, 'data', 'matches');
+const MATCH_METHODS = ['empirical', 'tiered', 'tiered2', 'netEV', 'cdf'];
+const AUTOMATICS_NOTE = 'Automatics are not modeled: every hand is solved and scored head-to-head, as in the batch runner.';
+
+// Table files read through fetch or loadCdfArrays, hashed into run metadata
+const tableFilesRead = new Set();
+// Deck shuffle source for the current seeded round; null means Math.random
+let currentRoundRandom = null;
 
 const SCRIPT_FILES = [
     'js/constants/hand-types.js',
@@ -79,6 +96,7 @@ function installHost() {
             return { ok: false, status: 404, statusText: 'Not Found', text: async () => '' };
         }
         const text = fs.readFileSync(filePath, 'utf8');
+        tableFilesRead.add(filePath);
         return { ok: true, status: 200, statusText: 'OK', text: async () => text };
     };
 }
@@ -89,6 +107,74 @@ function loadGameScripts() {
         return fs.readFileSync(filePath, 'utf8') + '\n';
     }).join('\n');
     vm.runInThisContext(source, { filename: 'lookup-rebuild-scripts.js' });
+}
+
+// mulberry32 PRNG whose state is the first 4 bytes of sha256("<seed>:<roundIndex>")
+function seededRandomForRound(seed, roundIndex) {
+    let state = crypto.createHash('sha256').update(`${seed}:${roundIndex}`).digest().readUInt32LE(0);
+    return function mulberry32() {
+        state = (state + 0x6D2B79F5) | 0;
+        let mixed = Math.imul(state ^ (state >>> 15), 1 | state);
+        mixed = (mixed + Math.imul(mixed ^ (mixed >>> 7), 61 | mixed)) ^ mixed;
+        return ((mixed ^ (mixed >>> 14)) >>> 0) / 4294967296;
+    };
+}
+
+// Replace the game's global shuffleDeck (js/utils.js, used by createDeck) with the same Fisher-Yates
+// drawing from currentRoundRandom when a seeded round is in progress
+function installSeededShuffle() {
+    const browserShuffleDeck = global.shuffleDeck;
+    global.shuffleDeck = function seededShuffleDeck(deck) {
+        if (!currentRoundRandom) return browserShuffleDeck(deck);
+        for (let i = deck.length - 1; i > 0; i--) {
+            const j = Math.floor(currentRoundRandom() * (i + 1));
+            [deck[i], deck[j]] = [deck[j], deck[i]];
+        }
+        return deck;
+    };
+}
+
+function withSeededRound(seed, roundIndex, dealFunction) {
+    currentRoundRandom = seed === null ? null : seededRandomForRound(seed, roundIndex);
+    try {
+        return dealFunction();
+    } finally {
+        currentRoundRandom = null;
+    }
+}
+
+function parseSeed() {
+    const seedText = argValue('--seed');
+    if (seedText === null) return null;
+    const seed = Number(seedText);
+    if (!Number.isSafeInteger(seed) || seed < 0) throw new Error(`--seed must be a non-negative integer, got ${seedText}`);
+    return seed;
+}
+
+function parseStartRound() {
+    const startRound = Number(argValue('--start-round') || '0');
+    if (!Number.isSafeInteger(startRound) || startRound < 0) throw new Error('--start-round must be a non-negative integer');
+    return startRound;
+}
+
+function gitText(gitArgs) {
+    return execFileSync('git', gitArgs, { cwd: REPO, encoding: 'utf8' }).trim();
+}
+
+// Tracked-file changes only, so match outputs in data/matches/ do not mark the tree dirty
+function runMetadata(runSettings) {
+    const tableFiles = [...tableFilesRead].sort().map((filePath) => ({
+        path: path.relative(REPO, filePath).replace(/\\/g, '/'),
+        sha256: crypto.createHash('sha256').update(fs.readFileSync(filePath)).digest('hex')
+    }));
+    return {
+        ...runSettings,
+        gitCommit: gitText(['rev-parse', 'HEAD']),
+        gitDirty: gitText(['status', '--porcelain', '--untracked-files=no']) !== '',
+        tableFiles,
+        nodeVersion: process.version,
+        timestamp: new Date().toISOString()
+    };
 }
 
 function parseCsvLine(line) {
@@ -145,6 +231,7 @@ function assertEmpiricalAugustFile() {
 function loadCdfArrays() {
     const cdfArraysPath = path.resolve(REPO, argValue('--cdf-arrays') || 'data/cdf_arrays_netev.json');
     cdfLookup.loadFromJson(JSON.parse(fs.readFileSync(cdfArraysPath, 'utf8')));
+    tableFilesRead.add(cdfArraysPath);
     const keyCounts = Object.entries(cdfLookup.cdfJson.positions)
         .map(([position, positionArrays]) => `${position} ${positionArrays.keys.length}`).join(', ');
     console.log(`CDF arrays loaded from ${cdfArraysPath} (${cdfLookup.cdfJson.meta.run}, ${cdfLookup.cdfJson.meta.mode}; keys ${keyCounts})`);
@@ -201,6 +288,15 @@ async function loadMethodTable(method) {
         }
         return;
     }
+    if (method === 'tiered2') {
+        const ok = await initializeTiered2WinProbability();
+        if (!ok) throw new Error('Tiered2 table failed to load');
+        const straight = lookupTiered2WinProbability('front', { hand_rank: [6, 14, 13, 1, 1, 1, 1, 4], isIncomplete: false });
+        const flush = lookupTiered2WinProbability('front', { hand_rank: [5, 14, 14], isIncomplete: false });
+        console.log(`Tiered2 loaded ${tiered2WinProbability.probabilityMap.size} rows. Sample straight=${straight} flush=${flush}`);
+        if (straight == null || flush == null) throw new Error('Tiered2 lookup missed a known front straight or flush');
+        return;
+    }
     if (method === 'cdf') {
         loadCdfArrays();
         const pairEV = cdfLookup.lookup('front', 0, [2, 14, 13]).netEV;
@@ -219,17 +315,19 @@ function writeChunk(stream, text) {
     return new Promise((resolve) => stream.once('drain', resolve));
 }
 
-async function dealRounds(method, rounds, outPath) {
+async function dealRounds(method, rounds, outPath, seed, startRound) {
     if (gameConfig.config.winProbabilityMethod !== method) {
         throw new Error(`winProbabilityMethod is "${gameConfig.config.winProbabilityMethod}", expected "${method}"`);
     }
-    if (method !== 'empirical' && method !== 'tiered' && method !== 'netEV' && method !== 'cdf') {
+    if (!MATCH_METHODS.includes(method)) {
         throw new Error(`Refusing method "${method}"`);
     }
     gameConfig.config.wildCardCount = 2;
     window.NETEV_USE_TIERED2_FORMULA = method === 'netEV';
 
     await loadMethodTable(method);
+    const metadataPath = outPath.replace(/\.json$/i, '') + '.meta.json';
+    const batchMetadata = runMetadata({ method, seed, rounds, startRound });
 
     fs.mkdirSync(path.dirname(outPath), { recursive: true });
     const stream = fs.createWriteStream(outPath);
@@ -241,10 +339,11 @@ async function dealRounds(method, rounds, outPath) {
     let failures = 0;
 
     while (written < rounds) {
-        const result = stats.playHandStats(6, 2);
+        const result = withSeededRound(seed, startRound + written, () => stats.playHandStats(6, 2));
         if (!result || result.error || !result.players || !result.scoringMatrix) {
             failures += 1;
             console.error(`Round failed (${failures}): ${result && result.error}`);
+            if (seed !== null) throw new Error(`Seeded round ${startRound + written} failed; retrying would replay the same deal`);
             if (failures > 50) throw new Error('Too many failed rounds');
             continue;
         }
@@ -261,6 +360,211 @@ async function dealRounds(method, rounds, outPath) {
     await writeChunk(stream, '\n]\n');
     await new Promise((resolve, reject) => stream.end((error) => error ? reject(error) : resolve()));
     console.log(`Wrote ${written} rounds to ${outPath}`);
+    const wallSeconds = (Date.now() - started) / 1000;
+    fs.writeFileSync(metadataPath, JSON.stringify({ ...batchMetadata, failures, wallSeconds }, null, 2) + '\n');
+    console.log(`Wrote run metadata to ${metadataPath}`);
+}
+
+// ---------------------------------------------------------------------------
+// Paired match runner (--match A,B)
+// ---------------------------------------------------------------------------
+
+function dealMatchHands(seed, roundIndex) {
+    const deckManager = new DeckManager();
+    return withSeededRound(seed, roundIndex, () => {
+        deckManager.createNewDeck();
+        return Array.from({ length: MATCH_SEAT_COUNT }, () => deckManager.dealCards(17));
+    });
+}
+
+// Solve one hand with one method: the solver reads gameConfig.config.winProbabilityMethod,
+// so set it (and the batch netEV formula flag) for this solve only, on a copy of the cards
+function solveWithMethod(dealtCards, method) {
+    if (window.WIN_PROB_OVERRIDE !== undefined) {
+        throw new Error(`window.WIN_PROB_OVERRIDE is set (${window.WIN_PROB_OVERRIDE}); it would override the match method`);
+    }
+    const savedMethod = gameConfig.config.winProbabilityMethod;
+    const savedFormulaFlag = window.NETEV_USE_TIERED2_FORMULA;
+    gameConfig.config.winProbabilityMethod = method;
+    window.NETEV_USE_TIERED2_FORMULA = method === 'netEV';
+    try {
+        const cardsCopy = dealtCards.map((card) => ({ ...card }));
+        const solved = findBestSetup(cardsCopy, { collectTopArrangements: false });
+        if (!solved || !solved.success || !solved.arrangement) {
+            throw new Error(`${method} found no arrangement: ${solved && solved.error}`);
+        }
+        return solved;
+    } finally {
+        gameConfig.config.winProbabilityMethod = savedMethod;
+        window.NETEV_USE_TIERED2_FORMULA = savedFormulaFlag;
+    }
+}
+
+// Cards per position as rank+suit (wild cards as played, marked *), sorted, back/middle/front
+function arrangementSignature(arrangement) {
+    return ['back', 'middle', 'front'].map((position) => arrangement[position].cards
+        .map((card) => `${card.rank}${card.suit}${card.isWild || card.wasWild ? '*' : ''}`)
+        .sort()
+        .join(' ')).join(' / ');
+}
+
+// Round scores of the six seats, scored like PlayHandStats.playHandStats steps 3-4
+function scoreTable(handStats, seatSolutions) {
+    const seatPlayers = seatSolutions.map((solution, seatIndex) => ({
+        name: `Player${seatIndex + 1}`,
+        arrangement: solution,
+        roundScore: 0
+    }));
+    for (const matchup of handStats.calculateHeadToHeadScoring(seatPlayers)) {
+        seatPlayers.find((seatPlayer) => seatPlayer.name === matchup.player1).roundScore += matchup.player1Score;
+        seatPlayers.find((seatPlayer) => seatPlayer.name === matchup.player2).roundScore += matchup.player2Score;
+    }
+    return seatPlayers.map((seatPlayer) => seatPlayer.roundScore);
+}
+
+// One deal: 12 solves (each hand by A and by B), two tables. Orientation 1: seats 1-3 A, seats 4-6 B;
+// orientation 2 swaps the methods. Each hand is played once by A and once by B.
+function playMatchDeal(methodA, methodB, seed, roundIndex, handStats) {
+    const dealtHands = dealMatchHands(seed, roundIndex);
+    const solvesA = dealtHands.map((dealtCards) => solveWithMethod(dealtCards, methodA));
+    const solvesB = dealtHands.map((dealtCards) => solveWithMethod(dealtCards, methodB));
+    const firstHalf = (seatIndex) => seatIndex < MATCH_SEAT_COUNT / 2;
+    const orientation1Scores = scoreTable(handStats, dealtHands.map((_, seatIndex) => firstHalf(seatIndex) ? solvesA[seatIndex] : solvesB[seatIndex]));
+    const orientation2Scores = scoreTable(handStats, dealtHands.map((_, seatIndex) => firstHalf(seatIndex) ? solvesB[seatIndex] : solvesA[seatIndex]));
+    const tableSum = (seatScores) => seatScores.reduce((total, seatScore) => total + seatScore, 0);
+    return {
+        round: roundIndex,
+        tableSums: [tableSum(orientation1Scores), tableSum(orientation2Scores)],
+        hands: dealtHands.map((dealtCards, handIndex) => {
+            const signatureA = arrangementSignature(solvesA[handIndex].arrangement);
+            const signatureB = arrangementSignature(solvesB[handIndex].arrangement);
+            return {
+                round: roundIndex,
+                handIndex,
+                w: dealtCards.filter((card) => card.isWild).length,
+                signatureA,
+                signatureB,
+                sameArrangement: signatureA === signatureB,
+                scoreA: firstHalf(handIndex) ? orientation1Scores[handIndex] : orientation2Scores[handIndex],
+                orientationA: firstHalf(handIndex) ? 'o1' : 'o2',
+                scoreB: firstHalf(handIndex) ? orientation2Scores[handIndex] : orientation1Scores[handIndex],
+                orientationB: firstHalf(handIndex) ? 'o2' : 'o1'
+            };
+        })
+    };
+}
+
+// Play rounds [startRound, startRound + rounds) in this process; each deal goes to onDeal
+function playMatchRange(methodA, methodB, seed, startRound, rounds, onDeal) {
+    const handStats = new PlayHandStats();
+    const started = Date.now();
+    for (let offset = 0; offset < rounds; offset++) {
+        onDeal(playMatchDeal(methodA, methodB, seed, startRound + offset, handStats));
+        const elapsed = (Date.now() - started) / 1000;
+        console.error(`Match rounds ${startRound}-${startRound + rounds - 1}: done ${offset + 1}/${rounds}` +
+            ` in ${elapsed.toFixed(0)}s (${(elapsed / (offset + 1)).toFixed(2)}s/round)`);
+    }
+}
+
+// Child process for --workers: plays its round range and writes one JSON line per deal
+function runMatchWorker(methodA, methodB, seed, startRound, rounds, workerOutPath) {
+    const lines = [];
+    playMatchRange(methodA, methodB, seed, startRound, rounds, (matchDeal) => lines.push(JSON.stringify(matchDeal)));
+    fs.writeFileSync(workerOutPath, lines.join('\n') + '\n');
+}
+
+function spawnMatchWorker(workerArgs, workerOutPath) {
+    return new Promise((resolve, reject) => {
+        const child = spawn(process.execPath, [__filename, ...workerArgs, '--worker-out', workerOutPath],
+            { cwd: REPO, stdio: ['ignore', 'ignore', 'inherit'] });
+        child.on('error', reject);
+        child.on('exit', (exitCode) => exitCode === 0 ? resolve() : reject(new Error(`Worker ${workerArgs.join(' ')} exited ${exitCode}`)));
+    });
+}
+
+// Split [startRound, startRound + rounds) into contiguous ranges, one per worker
+function workerRanges(startRound, rounds, workers) {
+    const ranges = [];
+    const baseSize = Math.floor(rounds / workers);
+    let nextRound = startRound;
+    for (let workerIndex = 0; workerIndex < workers; workerIndex++) {
+        const rangeSize = baseSize + (workerIndex < rounds % workers ? 1 : 0);
+        if (rangeSize > 0) ranges.push({ startRound: nextRound, rounds: rangeSize });
+        nextRound += rangeSize;
+    }
+    return ranges;
+}
+
+async function runMatch() {
+    const methodPair = argValue('--match').split(',').map((method) => method.trim());
+    const [methodA, methodB] = methodPair;
+    if (methodPair.length !== 2 || !MATCH_METHODS.includes(methodA) || !MATCH_METHODS.includes(methodB)) {
+        throw new Error(`--match needs two of ${MATCH_METHODS.join('|')}, got ${argValue('--match')}`);
+    }
+    const seed = parseSeed();
+    if (seed === null) throw new Error('--match needs --seed');
+    const rounds = Number(argValue('--rounds'));
+    if (!Number.isSafeInteger(rounds) || rounds < 1) throw new Error('--match needs --rounds N');
+    const startRound = parseStartRound();
+    const workers = Number(argValue('--workers') || '1');
+    if (!Number.isSafeInteger(workers) || workers < 1) throw new Error('--workers must be a positive integer');
+
+    gameConfig.config.wildCardCount = 2;
+    for (const method of new Set(methodPair)) await loadMethodTable(method);
+
+    const workerOutPath = argValue('--worker-out');
+    if (workerOutPath) {
+        runMatchWorker(methodA, methodB, seed, startRound, rounds, workerOutPath);
+        return;
+    }
+
+    const matchMetadata = runMetadata({
+        methodA, methodB, seed, rounds, startRound, endRound: startRound + rounds - 1, workers,
+        scoring: 'js/stats/play-hand-stats.js calculateHeadToHeadScoring, roundScore units; per point = /5',
+        notes: AUTOMATICS_NOTE
+    });
+    const started = Date.now();
+    const matchDeals = [];
+    if (workers === 1) {
+        playMatchRange(methodA, methodB, seed, startRound, rounds, (matchDeal) => matchDeals.push(matchDeal));
+    } else {
+        const scratchDir = fs.mkdtempSync(path.join(os.tmpdir(), 'pyramid-match-'));
+        const ranges = workerRanges(startRound, rounds, workers);
+        const rangeOutPaths = ranges.map((range) => path.join(scratchDir, `rounds_${range.startRound}.jsonl`));
+        const passThroughArgs = ['--cdf-arrays'].flatMap((flag) => argValue(flag) ? [flag, argValue(flag)] : []);
+        await Promise.all(ranges.map((range, rangeIndex) => spawnMatchWorker(
+            ['--match', `${methodA},${methodB}`, '--seed', String(seed), '--start-round', String(range.startRound),
+                '--rounds', String(range.rounds), ...passThroughArgs], rangeOutPaths[rangeIndex])));
+        for (const rangeOutPath of rangeOutPaths) {
+            fs.readFileSync(rangeOutPath, 'utf8').trim().split('\n').forEach((line) => matchDeals.push(JSON.parse(line)));
+        }
+        fs.rmSync(scratchDir, { recursive: true, force: true });
+    }
+    matchDeals.sort((dealA, dealB) => dealA.round - dealB.round);
+    const wallSeconds = (Date.now() - started) / 1000;
+
+    const handRows = matchDeals.flatMap((matchDeal) => matchDeal.hands);
+    const summary = {
+        ...matchSummary(handRows),
+        tablesChecked: matchDeals.length * 2,
+        tablesNotZeroSum: matchDeals.reduce((count, matchDeal) => count + matchDeal.tableSums.filter((tableSum) => tableSum !== 0).length, 0)
+    };
+    const fileStem = `match_${methodA}_vs_${methodB}_seed${seed}_${rounds}${startRound > 0 ? `_start${startRound}` : ''}`;
+    fs.mkdirSync(MATCH_DIR, { recursive: true });
+    const csvPath = path.join(MATCH_DIR, `${fileStem}.csv`);
+    const jsonPath = path.join(MATCH_DIR, `${fileStem}.json`);
+    fs.writeFileSync(csvPath, matchCsvText(handRows));
+    fs.writeFileSync(jsonPath, JSON.stringify({
+        metadata: { ...matchMetadata, wallSeconds, secondsPerRound: wallSeconds / rounds },
+        summary
+    }, null, 2) + '\n');
+
+    console.log(`\n${methodA} (A) vs ${methodB} (B), seed ${seed}, rounds ${startRound}-${startRound + rounds - 1}, workers ${workers}`);
+    console.log(`Wall ${wallSeconds.toFixed(1)}s, ${(wallSeconds / rounds).toFixed(2)}s/round`);
+    console.log(formatMatchSummary(summary));
+    console.log(`Tables not zero-sum: ${summary.tablesNotZeroSum}/${summary.tablesChecked}`);
+    console.log(AUTOMATICS_NOTE);
+    console.log(`Wrote ${jsonPath}\nWrote ${csvPath}`);
 }
 
 async function writeNetEV(winRatePath, outPath) {
@@ -327,17 +631,25 @@ async function main() {
         return;
     }
 
+    const seed = parseSeed();
+    if (seed !== null) installSeededShuffle();
+
+    if (argValue('--match')) {
+        await runMatch();
+        return;
+    }
+
     const method = argValue('--method');
     const rounds = parseInt(argValue('--rounds') || '10000', 10);
     const outPath = argValue('--out');
     if (!method || !outPath || !Number.isFinite(rounds) || rounds < 1) {
-        throw new Error('Need --method empirical|tiered|netEV|cdf --rounds N --out file.json');
+        throw new Error('Need --method empirical|tiered|tiered2|netEV|cdf --rounds N --out file.json');
     }
     gameConfig.config.winProbabilityMethod = method;
     if (gameConfig.config.winProbabilityMethod !== method) {
         throw new Error('Failed to set winProbabilityMethod exactly');
     }
-    await dealRounds(method, rounds, path.resolve(outPath));
+    await dealRounds(method, rounds, path.resolve(outPath), seed, parseStartRound());
 }
 
 main().catch((error) => {
