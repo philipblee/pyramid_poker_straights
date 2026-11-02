@@ -253,6 +253,16 @@ class FindBestSetupNoWildBase {
     }
 
 
+    /**
+     * Cards a hand takes once addKickersToArrangement fills it to the position's minimum
+     * @param {Object} hand - Detected hand
+     * @param {number} minimumCards - 5 for back and middle, 3 for front
+     * @returns {number}
+     */
+    filledCardCount(hand, minimumCards) {
+        return Math.max(hand.cards.length, minimumCards);
+    }
+
     searchMiddleHands(sortedHands, backHand, backIdx) {
         const backUsedCards = new Set(Analysis.getCardIds(backHand.cards));
 
@@ -261,6 +271,8 @@ class FindBestSetupNoWildBase {
 
             if (!this.canUseInPosition(middleHand, 'middle')) continue;
             if (this.hasCardOverlap(backUsedCards, middleHand.cards)) continue;
+            // Card budget: back and middle after kicker filling must leave at least 3 cards for the front
+            if (this.filledCardCount(backHand, 5) + this.filledCardCount(middleHand, 5) > 14) continue;
 
             // DEBUG: Check pruning logic
             const partialScore = this.calculatePartialScore(backHand, middleHand);
@@ -300,6 +312,8 @@ class FindBestSetupNoWildBase {
 
             if (!this.canUseInPosition(frontHand, 'front')) continue;
             if (this.hasCardOverlap(allUsedCards, frontHand.cards)) continue;
+            // Card budget: all three hands after kicker filling must fit in the 17 cards
+            if (this.filledCardCount(backHand, 5) + this.filledCardCount(middleHand, 5) + this.filledCardCount(frontHand, 3) > 17) continue;
 
             this.exploredNodes++;
             
