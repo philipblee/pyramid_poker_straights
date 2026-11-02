@@ -51,10 +51,12 @@ class AutoArrange {
      * Apply arrangement to player data and update game state
      */
     applyArrangement(playerData, arrangement) {
-        playerData.back = arrangement.back;
-        playerData.middle = arrangement.middle;
-        playerData.front = arrangement.front;
-        playerData.cards = arrangement.staging;
+        // Copies, so moving cards on the board never changes window.topArrangements[0]
+        const copyCards = (cards) => Array.isArray(cards) ? cards.map((card) => ({ ...card })) : cards;
+        playerData.back = copyCards(arrangement.back);
+        playerData.middle = copyCards(arrangement.middle);
+        playerData.front = copyCards(arrangement.front);
+        playerData.cards = copyCards(arrangement.staging);
         this.game.loadCurrentPlayerHand();
         delay()
         delay()

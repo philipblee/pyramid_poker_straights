@@ -112,10 +112,11 @@ class PyramidPoker {
         const playerData = this.playerHands.get(this.playerManager.getCurrentPlayer().name);
         if (!playerData) return;
 
-        playerData.back = item.arrangement.back.cards;
-        playerData.middle = item.arrangement.middle.cards;
-        playerData.front = item.arrangement.front.cards;
-        playerData.cards = item.arrangement.stagingCards || [];
+        // Copies, so moving cards on the board never changes the stored arrangement
+        playerData.back = item.arrangement.back.cards.map((card) => ({ ...card }));
+        playerData.middle = item.arrangement.middle.cards.map((card) => ({ ...card }));
+        playerData.front = item.arrangement.front.cards.map((card) => ({ ...card }));
+        playerData.cards = (item.arrangement.stagingCards || []).map((card) => ({ ...card }));
 
         this.loadCurrentPlayerHand();
 
