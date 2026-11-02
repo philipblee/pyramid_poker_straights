@@ -31,6 +31,8 @@ class AutoArrange {
             // Store top arrangements for scroller
             window.topArrangements = result.topArrangements || [];
             window.topArrangementIndex = 0;
+            // Post-kicker score of the arrangement put on the board (the played pick, which can differ from topArrangements[0])
+            window.topArrangementShownScore = result.arrangement.score;
 
             const arrangement = {
                 back: result.arrangement.back.cards,

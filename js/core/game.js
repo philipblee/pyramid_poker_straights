@@ -45,7 +45,7 @@ class PyramidPoker {
         document.getElementById('nextArrangement').addEventListener('click', () => this.browseArrangement(1));
 
         // Best algo selector
-        const BEST_ALGO_OPTIONS = ['netEV', 'tiered2', 'tiered', 'points',
+        const BEST_ALGO_OPTIONS = ['cdf', 'netEV', 'tiered2', 'tiered', 'points',
                                     'best-back', 'best-middle', 'best-front'];  // add new algos here
 
         const bestAlgoSelect = document.getElementById('bestAlgoSelect');
@@ -120,8 +120,22 @@ class PyramidPoker {
         this.loadCurrentPlayerHand();
 
         const total = window.topArrangements.length;
-        const current = window.topArrangementIndex + 1;
-        document.getElementById('arrangementCounter').textContent = `${current}/${total}`;
+        document.getElementById('arrangementCounter').textContent =
+            this.arrangementCounterText(window.topArrangementIndex, total, item.arrangement.score);
+    }
+
+    /**
+     * "i/N" for the arrangement browser; under the cdf method, followed by the post-kicker cdf netEV
+     * (expected points per opponent, summed over the three hands) of the arrangement on the board
+     * @param {number} index - Index of the arrangement on the board in window.topArrangements
+     * @param {number} total - Number of top arrangements
+     * @param {number} boardScore - Post-kicker score of the arrangement on the board
+     * @returns {string}
+     */
+    arrangementCounterText(index, total, boardScore) {
+        const counterText = `${index + 1}/${total}`;
+        if (gameConfig.config.winProbabilityMethod !== 'cdf' || !Number.isFinite(boardScore)) return counterText;
+        return `${counterText}  cdf ${boardScore.toFixed(3)}`;
     }
 
     addPlayer() {
@@ -160,7 +174,8 @@ class PyramidPoker {
                         document.getElementById('prevArrangement').style.display = 'inline-block';
                         document.getElementById('nextArrangement').style.display = 'inline-block';
                         document.getElementById('arrangementCounter').style.display = 'inline-block';
-                        document.getElementById('arrangementCounter').textContent = `1/${total}`;
+                        document.getElementById('arrangementCounter').textContent =
+                            this.arrangementCounterText(0, total, window.topArrangementShownScore);
                     }
 
                     // Hide spinner when done
