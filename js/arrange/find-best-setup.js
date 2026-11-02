@@ -43,6 +43,10 @@ class FindBestSetup {
 //            console.log(`🃏 Wild card analysis: ${wildCount} wild cards, ${nonWildCards.length} non-wild cards`);
             this.updateWildStatistics(wildCount);
 
+            // w for the cdf method: wilds in the full dealt hand, counting wilds already assigned a rank (wasWild)
+            const dealtWildCount = allCards.filter(card => card.isWild || card.wasWild).length;
+            options = { ...options, wildCount: dealtWildCount };
+
             // Dispatch to appropriate solver
             let result;
 

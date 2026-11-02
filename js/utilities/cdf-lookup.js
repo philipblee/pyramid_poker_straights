@@ -24,6 +24,18 @@ function rankKeyFromHandTuple(handTuple, cardCount) {
 }
 
 /**
+ * True for an incomplete hand's tuple, which holds no suit codes: [1, v] (1 card), [2, r] (2 cards),
+ * [3, a, b] (4 cards) from hand-detector.js. A complete tuple of a non-flush type holds the type,
+ * at least one rank and cardCount suit codes; flush types are never incomplete.
+ * @param {Array<number>} handTuple - hand_rank tuple
+ * @param {number} cardCount - Number of cards the tuple was built from
+ * @returns {boolean}
+ */
+function isTupleWithoutSuits(handTuple, cardCount) {
+    return !CDF_ONE_SUIT_TYPES.has(handTuple[0]) && handTuple.length < cardCount + 2;
+}
+
+/**
  * Lexicographic order of integer keys; a shorter key sorts before a longer one sharing its prefix
  */
 function compareRankKeys(leftKey, rightKey) {
@@ -39,8 +51,18 @@ function compareRankKeys(leftKey, rightKey) {
 class CdfLookupTable {
     constructor() {
         this.cdfJson = null;
+        this.prefixSums = null;
         this.isLoaded = false;
         this.loadError = null;
+        this.resetUsageCounts();
+    }
+
+    /**
+     * Counters filled by ScoringUtilities' cdf method: computed lookups by w and by kind
+     * (prefixFallback is a subset of incomplete), plus per-hand cache hits
+     */
+    resetUsageCounts() {
+        this.usageCounts = { byW: { 0: 0, 1: 0, 2: 0 }, complete: 0, incomplete: 0, prefixFallback: 0, cacheHits: 0 };
     }
 
     /**
@@ -56,8 +78,107 @@ class CdfLookupTable {
             }
         }
         this.cdfJson = cdfJson;
+        this.prefixSums = this.buildPrefixSums(cdfJson);
         this.isLoaded = true;
         this.loadError = null;
+    }
+
+    /**
+     * Per (position, w) running sums of equal_i, equal_i * winProb_i and equal_i * netEV_i
+     * (index i holds the sum over keys before i), with winProb_i and netEV_i the present-key lookup
+     * values; plus a running count of keys with positive mass
+     */
+    buildPrefixSums(cdfJson) {
+        const prefixSumsByPosition = {};
+        for (const [position, positionArrays] of Object.entries(cdfJson.positions)) {
+            prefixSumsByPosition[position] = {};
+            const keyCount = positionArrays.keys.length;
+            for (const wLabel of Object.keys(positionArrays).filter(field => field !== 'keys')) {
+                const massArrays = positionArrays[wLabel];
+                const cumulativeEqual = new Float64Array(keyCount + 1);
+                const cumulativeEqualWin = new Float64Array(keyCount + 1);
+                const cumulativeEqualNetEV = new Float64Array(keyCount + 1);
+                const cumulativePositiveKeys = new Int32Array(keyCount + 1);
+                for (let index = 0; index < keyCount; index++) {
+                    const equal = massArrays.equal[index];
+                    const keyPoints = this.handPoints(position, positionArrays.keys[index][0]);
+                    const keyWin = massArrays.below[index] + 0.5 * equal;
+                    const keyNetEV = keyWin * keyPoints - (massArrays.pointsAbove[index] + 0.5 * equal * keyPoints);
+                    cumulativeEqual[index + 1] = cumulativeEqual[index] + equal;
+                    cumulativeEqualWin[index + 1] = cumulativeEqualWin[index] + equal * keyWin;
+                    cumulativeEqualNetEV[index + 1] = cumulativeEqualNetEV[index] + equal * keyNetEV;
+                    cumulativePositiveKeys[index + 1] = cumulativePositiveKeys[index] + (equal > 0 ? 1 : 0);
+                }
+                prefixSumsByPosition[position][wLabel] = {
+                    cumulativeEqual, cumulativeEqualWin, cumulativeEqualNetEV, cumulativePositiveKeys
+                };
+            }
+        }
+        return prefixSumsByPosition;
+    }
+
+    /**
+     * Mass-weighted average over all keys starting with prefix:
+     * sum(equal_i * x_i) / sum(equal_i) for x = winProb, netEV (each key's own points).
+     * With zero total mass, falls back to the absent-key lookup of the prefix itself.
+     * @param {string} position - back / middle / front
+     * @param {number} w - Focal player's wild count (0, 1, 2)
+     * @param {Array<number>} prefix - Leading key elements, e.g. [2, 13]
+     * @returns {{winProb: number, netEV: number, mass: number, usedFallback: boolean}}
+     */
+    lookupPrefixAverage(position, w, prefix) {
+        const sortedKeys = this.positionMassArrays(position, w).sortedKeys;
+        const prefixLength = prefix.length;
+        const firstIndex = this.firstIndexWhere(sortedKeys, key => compareRankKeys(key, prefix) >= 0);
+        const endIndex = this.firstIndexWhere(sortedKeys, key => compareRankKeys(key.slice(0, prefixLength), prefix) > 0);
+        const sums = this.prefixSums[position][`w${w}`];
+        const positiveKeys = sums.cumulativePositiveKeys[endIndex] - sums.cumulativePositiveKeys[firstIndex];
+        if (positiveKeys === 0) {
+            const absentLookup = this.lookup(position, w, prefix);
+            return { winProb: absentLookup.winProb, netEV: absentLookup.netEV, mass: 0, usedFallback: true };
+        }
+        const mass = sums.cumulativeEqual[endIndex] - sums.cumulativeEqual[firstIndex];
+        return {
+            winProb: (sums.cumulativeEqualWin[endIndex] - sums.cumulativeEqualWin[firstIndex]) / mass,
+            netEV: (sums.cumulativeEqualNetEV[endIndex] - sums.cumulativeEqualNetEV[firstIndex]) / mass,
+            mass,
+            usedFallback: false
+        };
+    }
+
+    /**
+     * Lowest index whose key satisfies isAtOrPast (monotone over sortedKeys), or sortedKeys.length
+     */
+    firstIndexWhere(sortedKeys, isAtOrPast) {
+        let lowIndex = 0;
+        let highIndex = sortedKeys.length;
+        while (lowIndex < highIndex) {
+            const middleIndex = (lowIndex + highIndex) >> 1;
+            if (isAtOrPast(sortedKeys[middleIndex])) {
+                highIndex = middleIndex;
+            } else {
+                lowIndex = middleIndex + 1;
+            }
+        }
+        return lowIndex;
+    }
+
+    /**
+     * Sorted keys and mass arrays for (position, w), with the same errors as lookup
+     */
+    positionMassArrays(position, w) {
+        if (!this.isLoaded) {
+            throw new Error('CDF data not loaded');
+        }
+        const positionArrays = this.cdfJson.positions[position];
+        if (!positionArrays) {
+            throw new Error(`unknown position ${position}; expected one of ${Object.keys(this.cdfJson.positions)}`);
+        }
+        const massArrays = positionArrays[`w${w}`];
+        if (!massArrays) {
+            throw new Error(`unknown w ${w} for position ${position}`);
+        }
+        return { sortedKeys: positionArrays.keys, massArrays };
     }
 
     /**
@@ -101,32 +222,10 @@ class CdfLookupTable {
      * @returns {{winProb: number, tieProb: number, netEV: number}}
      */
     lookup(position, w, key) {
-        if (!this.isLoaded) {
-            throw new Error('CDF data not loaded');
-        }
-        const positionArrays = this.cdfJson.positions[position];
-        if (!positionArrays) {
-            throw new Error(`unknown position ${position}; expected one of ${Object.keys(this.cdfJson.positions)}`);
-        }
-        const massArrays = positionArrays[`w${w}`];
-        if (!massArrays) {
-            throw new Error(`unknown w ${w} for position ${position}`);
-        }
-        const sortedKeys = positionArrays.keys;
+        const { sortedKeys, massArrays } = this.positionMassArrays(position, w);
         const keyPoints = this.handPoints(position, key[0]);
 
-        // bisect_left
-        let lowIndex = 0;
-        let highIndex = sortedKeys.length;
-        while (lowIndex < highIndex) {
-            const middleIndex = (lowIndex + highIndex) >> 1;
-            if (compareRankKeys(sortedKeys[middleIndex], key) < 0) {
-                lowIndex = middleIndex + 1;
-            } else {
-                highIndex = middleIndex;
-            }
-        }
-        const insertion = lowIndex;
+        const insertion = this.firstIndexWhere(sortedKeys, sortedKey => compareRankKeys(sortedKey, key) >= 0);   // bisect_left
         const lastIndex = sortedKeys.length - 1;
 
         let equal;
@@ -171,6 +270,7 @@ if (typeof module !== 'undefined' && module.exports) {
         cdfLookup,
         initializeCdfLookup,
         rankKeyFromHandTuple,
+        isTupleWithoutSuits,
         compareRankKeys
     };
 }

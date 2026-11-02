@@ -2,6 +2,7 @@
 // Usage:
 //   node scripts/deal-lookup-rounds.js --method empirical --rounds 10000 --out <file.json>
 //   node scripts/deal-lookup-rounds.js --write-netev <hand_tuple_lookup.csv> <netEV_lookup_table.csv>
+//   --cdf-arrays <path>  CDF arrays for --method cdf and --test-all (default data/cdf_arrays_netev.json)
 
 const fs = require('fs');
 const path = require('path');
@@ -19,6 +20,7 @@ const SCRIPT_FILES = [
     'js/utilities/tiered-win-probability.js',
     'js/utilities/tiered2-win-probability.js',
     'js/utilities/netEV-lookup-table.js',
+    'js/utilities/cdf-lookup.js',
     'js/utilities/convert-to-card-model.js',
     'js/hands/evaluate-hand.js',
     'js/hands/hand-utilities.js',
@@ -140,6 +142,14 @@ function assertEmpiricalAugustFile() {
     console.log(`Empirical check: front straight ${straight} > front flush ${flush} (${loaded} rows)`);
 }
 
+function loadCdfArrays() {
+    const cdfArraysPath = path.resolve(REPO, argValue('--cdf-arrays') || 'data/cdf_arrays_netev.json');
+    cdfLookup.loadFromJson(JSON.parse(fs.readFileSync(cdfArraysPath, 'utf8')));
+    const keyCounts = Object.entries(cdfLookup.cdfJson.positions)
+        .map(([position, positionArrays]) => `${position} ${positionArrays.keys.length}`).join(', ');
+    console.log(`CDF arrays loaded from ${cdfArraysPath} (${cdfLookup.cdfJson.meta.run}, ${cdfLookup.cdfJson.meta.mode}; keys ${keyCounts})`);
+}
+
 async function loadMethodTable(method) {
     if (method === 'empirical') {
         const ok = await initializeEmpiricalWinProbability();
@@ -191,6 +201,16 @@ async function loadMethodTable(method) {
         }
         return;
     }
+    if (method === 'cdf') {
+        loadCdfArrays();
+        const pairEV = cdfLookup.lookup('front', 0, [2, 14, 13]).netEV;
+        const tripsEV = cdfLookup.lookup('front', 0, [4, 14]).netEV;
+        console.log(`CDF sample: front AA-K netEV ${pairEV} front trip aces netEV ${tripsEV}`);
+        if (!(tripsEV > pairEV)) {
+            throw new Error('CDF did not rank front trip aces above a front pair of aces');
+        }
+        return;
+    }
     throw new Error(`Unknown method ${method}`);
 }
 
@@ -203,7 +223,7 @@ async function dealRounds(method, rounds, outPath) {
     if (gameConfig.config.winProbabilityMethod !== method) {
         throw new Error(`winProbabilityMethod is "${gameConfig.config.winProbabilityMethod}", expected "${method}"`);
     }
-    if (method !== 'empirical' && method !== 'tiered' && method !== 'netEV') {
+    if (method !== 'empirical' && method !== 'tiered' && method !== 'netEV' && method !== 'cdf') {
         throw new Error(`Refusing method "${method}"`);
     }
     gameConfig.config.wildCardCount = 2;
@@ -292,6 +312,7 @@ async function main() {
         if (!await initializeTieredWinProbability()) throw new Error('Tiered table failed to load');
         if (!await initializeTiered2WinProbability()) throw new Error('Tiered2 table failed to load');
         if (!await initializeNetEVLookup()) throw new Error('NetEV table failed to load');
+        loadCdfArrays();
         console.log(`Loaded empirical ${empiricalWinProbability.probabilityMap.size}, tiered ${tieredWinProbability.probabilityMap.size}, tiered2 ${tiered2WinProbability.probabilityMap.size}, netEV ${netEVLookup.evMap.size}`);
         testAllMethods();
         return;
@@ -310,7 +331,7 @@ async function main() {
     const rounds = parseInt(argValue('--rounds') || '10000', 10);
     const outPath = argValue('--out');
     if (!method || !outPath || !Number.isFinite(rounds) || rounds < 1) {
-        throw new Error('Need --method empirical|tiered|netEV --rounds N --out file.json');
+        throw new Error('Need --method empirical|tiered|netEV|cdf --rounds N --out file.json');
     }
     gameConfig.config.winProbabilityMethod = method;
     if (gameConfig.config.winProbabilityMethod !== method) {

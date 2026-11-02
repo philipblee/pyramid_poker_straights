@@ -12,6 +12,9 @@ class FindBestSetupNoWildBase {
         // Default true to preserve existing "BEST" button UI behavior unchanged
         this.collectTopArrangements = options.collectTopArrangements !== false;
 
+        // Wilds in the full dealt hand (set by find-best-setup.js); used by the cdf method only
+        this.wildCount = options.wildCount;
+
         this.topArrangements = [];  // Array to track top N arrangements
         this.maxTopN = 5;          // Keep top n arrangememts
         this.pruningBuffer = 2;    // Allow arrangements within n points of best — UNCHANGED, correctness-relevant
@@ -360,8 +363,8 @@ class FindBestSetupNoWildBase {
      * @returns {number} - Partial score using actual Pyramid Poker points
      */
     calculatePartialScore(backHand, middleHand) {
-        const backScore = ScoringUtilities.getExpectedPoints(backHand, backHand.cards, 'back');
-        const middleScore = ScoringUtilities.getExpectedPoints(middleHand, middleHand.cards, 'middle');
+        const backScore = ScoringUtilities.getExpectedPoints(backHand, backHand.cards, 'back', undefined, undefined, this.wildCount);
+        const middleScore = ScoringUtilities.getExpectedPoints(middleHand, middleHand.cards, 'middle', undefined, undefined, this.wildCount);
         return backScore + middleScore;
     }
 
@@ -376,7 +379,7 @@ class FindBestSetupNoWildBase {
         for (let i = startIdx; i < Math.min(startIdx + 50, sortedHands.length); i++) {
             const hand = sortedHands[i];
             if (this.canUseInPosition(hand, 'front')) {
-                return ScoringUtilities.getExpectedPoints(hand, hand.cards, 'front');
+                return ScoringUtilities.getExpectedPoints(hand, hand.cards, 'front', undefined, undefined, this.wildCount);
             }
         }
         return 0;
@@ -391,7 +394,7 @@ class FindBestSetupNoWildBase {
 
     getHandScore(hand, position) {
        // Use expected value (probability × points) for better optimization
-        return ScoringUtilities.getExpectedPoints(hand, hand.cards, position);
+        return ScoringUtilities.getExpectedPoints(hand, hand.cards, position, undefined, undefined, this.wildCount);
     }
 
     /**
@@ -519,7 +522,7 @@ class FindBestSetupNoWildBase {
 class FindBestSetupNoWildEmpirical extends FindBestSetupNoWildBase {
     getHandScore(hand, position) {
         const method = gameConfig.config.winProbabilityMethod;
-        return ScoringUtilities.getExpectedPoints(hand, hand.cards, position, method);
+        return ScoringUtilities.getExpectedPoints(hand, hand.cards, position, method, undefined, this.wildCount);
     }
 }
 
@@ -527,7 +530,7 @@ class FindBestSetupNoWildEmpirical extends FindBestSetupNoWildBase {
 class FindBestSetupNoWild extends FindBestSetupNoWildBase {
     getHandScore(hand, position) {
         const method = gameConfig.config.winProbabilityMethod;
-        return ScoringUtilities.getExpectedPoints(hand, hand.cards, position, method);
+        return ScoringUtilities.getExpectedPoints(hand, hand.cards, position, method, undefined, this.wildCount);
     }
 }
 
@@ -535,7 +538,7 @@ class FindBestSetupNoWild extends FindBestSetupNoWildBase {
 class FindBestSetupNoWildTiered extends FindBestSetupNoWildBase {
     getHandScore(hand, position) {
         const method = gameConfig.config.winProbabilityMethod;
-        return ScoringUtilities.getExpectedPoints(hand, hand.cards, position, method);
+        return ScoringUtilities.getExpectedPoints(hand, hand.cards, position, method, undefined, this.wildCount);
     }
 }
 
@@ -543,7 +546,7 @@ class FindBestSetupNoWildTiered extends FindBestSetupNoWildBase {
 class FindBestSetupNoWildTiered2 extends FindBestSetupNoWildBase {
     getHandScore(hand, position) {
         const method = gameConfig.config.winProbabilityMethod;
-        return ScoringUtilities.getExpectedPoints(hand, hand.cards, position, method);
+        return ScoringUtilities.getExpectedPoints(hand, hand.cards, position, method, undefined, this.wildCount);
     }
 }
 
@@ -551,7 +554,7 @@ class FindBestSetupNoWildTiered2 extends FindBestSetupNoWildBase {
 class FindBestSetupNoWildPoints extends FindBestSetupNoWildBase {
     getHandScore(hand, position) {
         const method = gameConfig.config.winProbabilityMethod;
-        return ScoringUtilities.getExpectedPoints(hand, hand.cards, position, method);
+        return ScoringUtilities.getExpectedPoints(hand, hand.cards, position, method, undefined, this.wildCount);
     }
 }
 

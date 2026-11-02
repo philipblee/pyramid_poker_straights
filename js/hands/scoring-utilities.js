@@ -69,11 +69,15 @@ static getPointsForHand(hand, position, cardCount = null) {
 
     // Updated ScoringUtilities.getExpectedPoints method
 
-    static getExpectedPoints(hand, cards, position, playerCount = 4, method = null) {
+    static getExpectedPoints(hand, cards, position, playerCount = 4, method = null, wildCount = null) {
         const actualMethod = method ||
                             window.WIN_PROB_OVERRIDE ||
                             window.gameConfig?.config?.winProbabilityMethod ||
                             'tiered2';
+
+        if (actualMethod === 'cdf') {
+            return this.cdfExpectedPoints(hand, cards, position, wildCount);
+        }
 
         if (actualMethod === 'points') {
             const pointsIfWin = hand.positionScores[position];
@@ -124,6 +128,60 @@ static getPointsForHand(hand, position, cardCount = null) {
             const pointsIfWin = hand.positionScores[position];
             return winProb * pointsIfWin;
         }
+    }
+
+    /**
+     * cdf method: netEV per opponent from cdfLookup (js/utilities/cdf-lookup.js) for a focal player
+     * holding wildCount wilds in the dealt hand. Complete hands use the suit-stripped key; incomplete
+     * hands (tuple without suit codes) use the mass-weighted average over keys starting with the tuple.
+     * Cached per hand in hand.cdfCache[position:w], revalidated against the current tuple, because
+     * completed hands are copied with {...hand} and keep fields from their incomplete tuples.
+     */
+    static cdfExpectedPoints(hand, cards, position, wildCount) {
+        if (!Number.isInteger(wildCount) || wildCount < 0 || wildCount > 2) {
+            throw new Error(`cdf method needs a wild count 0..2, got ${wildCount}`);
+        }
+        const seat = position.toLowerCase();
+        const handTuple = hand.hand_rank;
+        // addKickersToArrangement writes the tuple of the hand completed with kickers to 3 (front) or
+        // 5 (middle/back) cards onto the hand before its cards are replaced, so count at least that many.
+        // Tuples without suit codes stay detected: [1, v], [2, r], [3, a, b], and evaluateThreeCardHand's
+        // [1, 7] / [1, 8, 7] placeholders when the front could not be filled to 3 cards.
+        const seatMinimumCards = seat === 'front' ? 3 : 5;
+        const cardCount = Math.max((cards || hand.cards).length, seatMinimumCards);
+        const isIncomplete = isTupleWithoutSuits(handTuple, cardCount);
+
+        const tupleSignature = `${handTuple.join(',')}/${cardCount}`;
+        const cacheSlot = `${seat}:${wildCount}`;
+        const cachedEntry = hand.cdfCache && hand.cdfCache[cacheSlot];
+        const usageCounts = cdfLookup.usageCounts;
+        if (cachedEntry && cachedEntry.tupleSignature === tupleSignature) {
+            usageCounts.cacheHits++;
+            return cachedEntry.value;
+        }
+
+        let netEV;
+        if (isIncomplete) {
+            const prefixAverage = cdfLookup.lookupPrefixAverage(seat, wildCount, handTuple);
+            netEV = prefixAverage.netEV;
+            usageCounts.incomplete++;
+            if (prefixAverage.usedFallback) usageCounts.prefixFallback++;
+        } else {
+            const rankKey = rankKeyFromHandTuple(handTuple, cardCount);
+            if (rankKey.length < 2) {
+                throw new Error(`cdf: tuple [${handTuple}] with ${cardCount} cards gives key [${rankKey}]`);
+            }
+            netEV = cdfLookup.lookup(seat, wildCount, rankKey).netEV;
+            usageCounts.complete++;
+        }
+        usageCounts.byW[wildCount]++;
+
+        // replace rather than mutate: {...hand} copies share the cdfCache object
+        hand.cdfCache = {
+            ...hand.cdfCache,
+            [cacheSlot]: { tupleSignature, w: wildCount, position: seat, value: netEV }
+        };
+        return netEV;
     }
 
 // Also add the import at the top of your file:

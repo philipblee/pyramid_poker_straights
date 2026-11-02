@@ -5,13 +5,13 @@
 function testAllMethods() {
     console.log('\n🧪 ======== COMPREHENSIVE TEST SUITE WITH ARRANGEMENT COMPARISON ========');
     console.log('Testing all wild scenarios × all optimization methods');
-    console.log('Total tests: 150 (10 cases × 3 wild scenarios × 5 methods)');
+    console.log('Total tests: 180 (10 cases × 3 wild scenarios × 6 methods)');
     console.log('NEW: Comparing arrangements between methods for consistency');
 
     const results = {
-        noWild: { points: [], empirical: [], tiered: [] , tiered2: [], netEV:[] },
-        oneWild:{ points: [], empirical: [], tiered: [] , tiered2: [], netEV:[] },
-        twoWild: { points: [], empirical: [], tiered: [] , tiered2: [], netEV:[] },
+        noWild: { points: [], empirical: [], tiered: [] , tiered2: [], netEV:[], cdf: [] },
+        oneWild:{ points: [], empirical: [], tiered: [] , tiered2: [], netEV:[], cdf: [] },
+        twoWild: { points: [], empirical: [], tiered: [] , tiered2: [], netEV:[], cdf: [] },
         summary: { passed: 0, failed: 0, total: 120 },
         comparisons: [] // NEW: Track arrangement comparisons
     };
@@ -32,9 +32,9 @@ function testAllMethods() {
             console.log(`\n🔍 Test Case ${testId}:`);
 
             const caseResults = {};
-            const methods = ['points', 'empirical', 'tiered', 'tiered2', 'netEV'];
+            const methods = ['points', 'empirical', 'tiered', 'tiered2', 'netEV', 'cdf'];
 
-            // Run all five methods on same test case
+            // Run all six methods on same test case
             methods.forEach(method => {
 //                console.log(`  ${method.padEnd(10)}: `);
 
@@ -80,6 +80,7 @@ function testAllMethods() {
             results[toCamelCase(range.name)].tiered.push(caseResults.tiered);
             results[toCamelCase(range.name)].tiered2.push(caseResults.tiered2);
             results[toCamelCase(range.name)].netEV.push(caseResults.netEV);
+            results[toCamelCase(range.name)].cdf.push(caseResults.cdf);
 
             console.log(`📊 netEV lookups: ${window.lookupCount}, tiered2 lookups: ${window.tiered2LookupCount || 0}`);
 
@@ -103,7 +104,7 @@ function testAllMethods() {
 }
 
 function compareArrangements(caseResults, testId) {
-    const methods = ['points', 'empirical', 'tiered', 'tiered2', 'netEV'];
+    const methods = ['points', 'empirical', 'tiered', 'tiered2', 'netEV', 'cdf'];
     const arrangements = {};
     const scores = {};
 
@@ -247,7 +248,7 @@ function calculateSummaryStats(results) {
     // Count results across all scenarios and methods
     Object.values(results).forEach(scenario => {
         if (typeof scenario === 'object' && scenario.points) {
-            [scenario.points, scenario.empirical, scenario.tiered, scenario.tiered2, scenario.netEV].forEach(methodResults => {
+            [scenario.points, scenario.empirical, scenario.tiered, scenario.tiered2, scenario.netEV, scenario.cdf].forEach(methodResults => {
                 methodResults.forEach(result => {
                     if (result.success) totalPassed++;
                     else totalFailed++;
@@ -272,7 +273,7 @@ function displayComprehensiveResults(results) {
 
     // Results by scenario and method
     const scenarios = ['noWild', 'oneWild', 'twoWild'];
-    const methods = ['points', 'empirical', 'tiered', 'tiered2', 'netEV'];
+    const methods = ['points', 'empirical', 'tiered', 'tiered2', 'netEV', 'cdf'];
 
     scenarios.forEach(scenario => {
         const scenarioName = scenario.replace(/([A-Z])/g, '-$1').toLowerCase().replace(/^-/, '');
@@ -318,7 +319,7 @@ function toCamelCase(str) {
 function quickCompareArrangements(testId) {
     console.log(`\n🔍 Quick Arrangement Comparison for Test ${testId}:`);
 
-    const methods = ['points', 'empirical', 'tiered', 'tiered2', 'netEV'];
+    const methods = ['points', 'empirical', 'tiered', 'tiered2', 'netEV', 'cdf'];
     const results = {};
 
     methods.forEach(method => {
@@ -342,6 +343,7 @@ function quickCompareArrangements(testId) {
     const tieredArr = results.tiered.arrangement;
     const tiered2Arr = results.tiered2.arrangement;
     const netEV = results.netEV.arrangement;
+    const cdfArr = results.cdf.arrangement;
 
     const allSame = JSON.stringify(pointsArr) === JSON.stringify(empiricalArr) &&
                     JSON.stringify(empiricalArr) === JSON.stringify(tieredArr);
@@ -355,21 +357,24 @@ function quickCompareArrangements(testId) {
             empirical: formatHandForDisplay(empiricalArr?.back),
             tiered: formatHandForDisplay(tieredArr?.back),
             tiered2: formatHandForDisplay(tiered2Arr?.back),
-            netEV: formatHandForDisplay(netEV?.back)
+            netEV: formatHandForDisplay(netEV?.back),
+            cdf: formatHandForDisplay(cdfArr?.back)
         });
         console.log('Middle hands:', {
             points: formatHandForDisplay(pointsArr?.middle),
             empirical: formatHandForDisplay(empiricalArr?.middle),
             tiered: formatHandForDisplay(tieredArr?.middle),
             tiered2: formatHandForDisplay(tiered2Arr?.middle),
-            netEV: formatHandForDisplay(netEV?.middle)
+            netEV: formatHandForDisplay(netEV?.middle),
+            cdf: formatHandForDisplay(cdfArr?.middle)
         });
         console.log('Front hands:', {
             points: formatHandForDisplay(pointsArr?.front),
             empirical: formatHandForDisplay(empiricalArr?.front),
             tiered: formatHandForDisplay(tieredArr?.front),
             tiered2: formatHandForDisplay(tiered2Arr?.front),
-            netEV: formatHandForDisplay(netEV?.front)
+            netEV: formatHandForDisplay(netEV?.front),
+            cdf: formatHandForDisplay(cdfArr?.front)
         });
     }
 
