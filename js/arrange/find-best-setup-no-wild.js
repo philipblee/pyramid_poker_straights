@@ -75,6 +75,20 @@ class FindBestSetupNoWildBase {
             this.topArrangements.sort((a, b) => b.score - a.score);
         }
 
+        // The played arrangement leads the list, so "1/N" is always the board BEST puts down;
+        // later entries with the same cards (only the order inside a hand differs) are dropped
+        if (this.collectTopArrangements && finalArrangement) {
+            const seenCardKeys = new Set([this.arrangementCardKey(finalArrangement)]);
+            const otherArrangements = this.topArrangements.filter((entry) => {
+                const cardKey = this.arrangementCardKey(entry.arrangement);
+                if (seenCardKeys.has(cardKey)) return false;
+                seenCardKeys.add(cardKey);
+                return true;
+            });
+            this.topArrangements = [{ arrangement: finalArrangement, score: finalArrangement.score }, ...otherArrangements]
+                .slice(0, this.maxTopN);
+        }
+
         return {
             arrangement: finalArrangement,
             score: this.bestScore,
@@ -517,8 +531,39 @@ class FindBestSetupNoWildBase {
                arr1.front.rank === arr2.front.rank;
     }
 
+    /**
+     * Playable after kicker filling: card minimums (back 5-8, middle 5-7, front 3 or 5), back >= middle >= front,
+     * and a 5-card front of at least a flush. Same rules as ArrangementValidator.validateHandOrder and
+     * validateFrontHandConstraint, without their logging. Kicker filling can turn a detected hand into a
+     * straight or flush, so a leaf that was ordered before filling can break the order after it.
+     * @param {Object} completedArrangement - Arrangement from addKickersToArrangement
+     * @returns {boolean}
+     */
+    isPlayableArrangement(completedArrangement) {
+        const { back, middle, front } = completedArrangement;
+        if (back.cards.length < 5 || back.cards.length > 8) return false;
+        if (middle.cards.length < 5 || middle.cards.length > 7) return false;
+        if (front.cards.length !== 3 && front.cards.length !== 5) return false;
+        if (compareTuples(back.handStrength.handStrength, middle.handStrength.handStrength) < 0) return false;
+        if (compareTuples(middle.handStrength.handStrength, front.handStrength.handStrength) < 0) return false;
+        if (front.cards.length === 5 && front.handStrength.handType < 5) return false;
+        return true;
+    }
+
+    /**
+     * Card ids per position, order-insensitive, to recognise the same arrangement
+     * @param {Object} arrangement - Arrangement with back/middle/front cards
+     * @returns {string}
+     */
+    arrangementCardKey(arrangement) {
+        return ['back', 'middle', 'front']
+            .map((position) => arrangement[position].cards.map((card) => card.id).sort().join(','))
+            .join('|');
+    }
+
     updateTopArrangements(arrangement, score) {
         const completedArrangement = this.addKickersToArrangement(arrangement);
+        if (!this.isPlayableArrangement(completedArrangement)) return;
 
         this.topArrangements.push({
             arrangement: completedArrangement,
