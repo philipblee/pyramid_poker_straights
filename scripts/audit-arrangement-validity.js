@@ -1,5 +1,9 @@
 // Audit: are the solver's arrangements legal under the game's own rules?
-// Usage: node scripts/audit-arrangement-validity.js [match csv ...] [--prune-rounds N] [--skip-test-cases]
+// Usage: node scripts/audit-arrangement-validity.js [match csv ...] [--prune-rounds N] [--skip-matches] [--skip-test-cases]
+//        [--prune-two-wild] [--prune-time-cap 60] [--prune-out data/audit_pruning_cdf.jsonl]
+// The pruning check solves each hand in a child process (killed at the time cap and logged as skipped), prints a
+// progress line per hand and appends each result to the --prune-out file as it finishes.
+// Two-wild test cases are left out of the pruning check unless --prune-two-wild is given.
 //   default CSVs: data/matches/match_cdf_vs_tiered2_seed1_1000.csv and ..._seed1_1000_start1000.csv
 //
 // Validity is what PyramidPoker.validateHands (js/core/game.js) requires before Submit is enabled, checked with the
@@ -21,6 +25,7 @@ const fs = require('fs');
 const path = require('path');
 const vm = require('vm');
 const { performance } = require('perf_hooks');
+const { spawnSync } = require('child_process');
 const { readMatchCsv } = require('./match-summary.js');
 const { arrangementFromSignature, dealtHandCards, dealtHandsForRound } = require('./summarize-match-differences.js');
 
@@ -314,24 +319,78 @@ function cdfMonotonicity() {
     return monotonicityLines;
 }
 
+// Hand spec "case:<id>" or "round:<seed>:<round>:<hand>" -> dealt cards
+function dealtCardsForSpec(handSpec) {
+    const specParts = handSpec.split(':');
+    if (specParts[0] === 'case') return quietly(() => createFromCardsTestCase(Number(specParts[1])));
+    if (specParts[0] === 'round') return dealtHandsForRound(Number(specParts[1]), Number(specParts[2]))[Number(specParts[3])];
+    throw new Error(`Unknown hand spec ${handSpec}`);
+}
+
+function labelForSpec(handSpec) {
+    const specParts = handSpec.split(':');
+    return specParts[0] === 'case' ? `case ${specParts[1]}` : `round ${specParts[2]} hand ${specParts[3]}`;
+}
+
+// Solve one hand pruned and unpruned in a child process so a slow hand can be killed at the time cap
+function comparePrunedInChild(handSpec, timeCapSeconds) {
+    const startedAt = Date.now();
+    const childRun = spawnSync(process.execPath, [__filename, '--prune-hand', handSpec], {
+        cwd: REPO, encoding: 'utf8', timeout: timeCapSeconds * 1000, maxBuffer: 64 * 1024 * 1024
+    });
+    const elapsedSeconds = (Date.now() - startedAt) / 1000;
+    if (childRun.error && childRun.error.code === 'ETIMEDOUT') return { handSpec, label: labelForSpec(handSpec), skipped: `too slow (over ${timeCapSeconds}s)`, elapsedSeconds };
+    const resultLine = (childRun.stdout || '').split('\n').find((outputLine) => outputLine.startsWith('PRUNE_RESULT '));
+    if (childRun.status !== 0 || !resultLine) {
+        return { handSpec, label: labelForSpec(handSpec), skipped: `child failed (exit ${childRun.status}): ${(childRun.stderr || '').trim().split('\n').pop()}`, elapsedSeconds };
+    }
+    return { ...JSON.parse(resultLine.slice('PRUNE_RESULT '.length)), handSpec, elapsedSeconds };
+}
+
+// Hands for the pruning check: test cases by wild count (no- and one-wild by default, two-wild with
+// --prune-two-wild) plus the first N rounds of the first match CSV
+function pruneHandSpecs(matchCsvPaths, pruneRounds) {
+    const caseIds = TEST_CASE_IDS.filter((caseId) => caseId < 2001 || process.argv.includes('--prune-two-wild'));
+    const handSpecs = caseIds.map((caseId) => `case:${caseId}`);
+    if (pruneRounds > 0 && matchCsvPaths.length > 0) {
+        const { seed, startRound } = JSON.parse(fs.readFileSync(matchCsvPaths[0].replace(/\.csv$/i, '.json'), 'utf8')).metadata;
+        for (let roundIndex = startRound; roundIndex < startRound + pruneRounds; roundIndex++) {
+            for (let handIndex = 0; handIndex < 6; handIndex++) handSpecs.push(`round:${seed}:${roundIndex}:${handIndex}`);
+        }
+    }
+    return handSpecs;
+}
+
 function auditPruning(matchCsvPaths, pruneRounds) {
     console.log('\nPruning check (cdf): netEV over the sorted CDF keys (estimateMaxFrontScore assumes the first front-valid hand in sort order scores highest)');
     cdfMonotonicity().forEach((monotonicityLine) => console.log(monotonicityLine));
 
-    const comparisons = TEST_CASE_IDS.map((caseId) => comparePrunedAndUnpruned(`case ${caseId}`, quietly(() => createFromCardsTestCase(caseId))));
-    if (pruneRounds > 0 && matchCsvPaths.length > 0) {
-        const { seed, startRound } = JSON.parse(fs.readFileSync(matchCsvPaths[0].replace(/\.csv$/i, '.json'), 'utf8')).metadata;
-        for (let roundIndex = startRound; roundIndex < startRound + pruneRounds; roundIndex++) {
-            dealtHandsForRound(seed, roundIndex).forEach((dealtCards, handIndex) =>
-                comparisons.push(comparePrunedAndUnpruned(`round ${roundIndex} hand ${handIndex}`, dealtCards)));
-        }
-    }
-    const lostScore = comparisons.filter((comparison) => comparison.unprunedScore > comparison.prunedScore + 1e-9);
-    const changedArrangement = comparisons.filter((comparison) => !comparison.sameArrangement);
-    console.log(`  ${comparisons.length} hands solved with and without pruning (30 test cases + ${pruneRounds} match rounds x 6 hands):` +
+    const timeCapSeconds = Number(argValue('--prune-time-cap') || '60');
+    const resultsPath = path.resolve(REPO, argValue('--prune-out') || 'data/audit_pruning_cdf.jsonl');
+    const handSpecs = pruneHandSpecs(matchCsvPaths, pruneRounds);
+    fs.mkdirSync(path.dirname(resultsPath), { recursive: true });
+    fs.writeFileSync(resultsPath, '');
+    console.log(`  ${handSpecs.length} hands, each solved with and without pruning in a child process (cap ${timeCapSeconds}s per hand);` +
+        ` results appended to ${path.relative(REPO, resultsPath)}`);
+
+    const comparisons = [];
+    handSpecs.forEach((handSpec, handNumber) => {
+        const comparison = comparePrunedInChild(handSpec, timeCapSeconds);
+        comparisons.push(comparison);
+        fs.appendFileSync(resultsPath, JSON.stringify(comparison) + '\n');
+        const outcomeText = comparison.skipped ? `skipped, ${comparison.skipped}`
+            : `${comparison.sameArrangement ? 'same arrangement' : 'ARRANGEMENT DIFFERS'}, pruned ${comparison.prunedScore.toFixed(4)}` +
+              ` unpruned ${comparison.unprunedScore.toFixed(4)}${comparison.unprunedScore > comparison.prunedScore + 1e-9 ? ' (PRUNING LOST SCORE)' : ''}` +
+              `${comparison.earlyStop ? ', early stop' : ''}`;
+        console.log(`  [${handNumber + 1}/${handSpecs.length}] ${comparison.label}: ${outcomeText} (${comparison.elapsedSeconds.toFixed(1)}s)`);
+    });
+
+    const finished = comparisons.filter((comparison) => !comparison.skipped);
+    const lostScore = finished.filter((comparison) => comparison.unprunedScore > comparison.prunedScore + 1e-9);
+    const changedArrangement = finished.filter((comparison) => !comparison.sameArrangement);
+    console.log(`  Summary: ${finished.length} compared, ${comparisons.length - finished.length} skipped;` +
         ` unpruned scored higher on ${lostScore.length}, arrangement differs on ${changedArrangement.length},` +
-        ` early stop (>${EARLY_STOP_NODES} nodes) on ${comparisons.filter((comparison) => comparison.earlyStop).length};` +
-        ` unpruned solve ${(comparisons.reduce((total, comparison) => total + comparison.unprunedMs, 0) / comparisons.length).toFixed(0)} ms average`);
+        ` early stop (>${EARLY_STOP_NODES} nodes) on ${finished.filter((comparison) => comparison.earlyStop).length}`);
     for (const comparison of changedArrangement.concat(lostScore.filter((comparison) => comparison.sameArrangement))) {
         console.log(`  ${comparison.label}: pruned ${comparison.prunedScore.toFixed(4)} ${comparison.prunedSignature}`);
         console.log(`  ${' '.repeat(comparison.label.length)}  unpruned ${comparison.unprunedScore.toFixed(4)} ${comparison.unprunedSignature}`);
@@ -347,13 +406,22 @@ async function auditArrangementValidity() {
     await quietly(loadTables);
     installPruningControl();
 
+    // Child mode for the pruning check: one hand, result on stdout
+    const pruneHandSpec = argValue('--prune-hand');
+    if (pruneHandSpec) {
+        const comparison = comparePrunedAndUnpruned(labelForSpec(pruneHandSpec), dealtCardsForSpec(pruneHandSpec));
+        process.stdout.write(`PRUNE_RESULT ${JSON.stringify(comparison)}\n`);
+        return;
+    }
+
     const pruneRounds = Number(argValue('--prune-rounds') || '0');
-    const flagValues = new Set([argValue('--prune-rounds')]);
+    const flagValues = new Set(['--prune-rounds', '--prune-time-cap', '--prune-out'].map(argValue));
     const csvArguments = process.argv.slice(2).filter((argument) => !argument.startsWith('--') && !flagValues.has(argument));
     const matchCsvPaths = (csvArguments.length > 0 ? csvArguments : DEFAULT_MATCH_CSVS).map((csvPath) => path.resolve(REPO, csvPath));
 
     console.log('1. Match arrangements');
-    matchCsvPaths.forEach(auditMatchCsv);
+    if (process.argv.includes('--skip-matches')) console.log('  skipped (--skip-matches)');
+    else matchCsvPaths.forEach(auditMatchCsv);
     if (!process.argv.includes('--skip-test-cases')) {
         console.log('\n2. Stored test cases');
         auditTestCases();
