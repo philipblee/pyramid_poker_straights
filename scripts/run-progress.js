@@ -16,7 +16,8 @@ function formatDuration(totalSeconds) {
     return hours > 0 ? `${hours}h${String(minutes).padStart(2, '0')}m` : `${minutes}m${String(seconds).padStart(2, '0')}s`;
 }
 
-function runProgress(label, totalRounds, progressPath) {
+// unitName names what is counted in the line (default 'round')
+function runProgress(label, totalRounds, progressPath, unitName = 'round') {
     const startedAt = Date.now();
     let lastPrintAt = startedAt;
     let lastPrintedRounds = 0;
@@ -34,8 +35,8 @@ function runProgress(label, totalRounds, progressPath) {
         const secondsPerRound = roundsDone > 0 ? elapsedSeconds / roundsDone : null;
         const remainingText = secondsPerRound === null ? 'n/a' : formatDuration(secondsPerRound * (totalRounds - roundsDone));
         const detail = detailText();
-        const progressLine = `${label}: ${roundsDone}/${totalRounds} rounds, elapsed ${formatDuration(elapsedSeconds)},` +
-            ` remaining ~${remainingText}${secondsPerRound === null ? '' : ` (${secondsPerRound.toFixed(2)}s/round)`}${detail ? `; ${detail}` : ''}`;
+        const progressLine = `${label}: ${roundsDone}/${totalRounds} ${unitName}s, elapsed ${formatDuration(elapsedSeconds)},` +
+            ` remaining ~${remainingText}${secondsPerRound === null ? '' : ` (${secondsPerRound.toFixed(2)}s/${unitName})`}${detail ? `; ${detail}` : ''}`;
         console.log(progressLine);
         fs.writeFileSync(progressPath, `${new Date(now).toISOString()} ${progressLine}\n`);
     }
