@@ -17,6 +17,7 @@ const crypto = require('crypto');
 const { execFileSync, spawn } = require('child_process');
 const { performance } = require('perf_hooks');
 const { matchSummary, formatMatchSummary, matchCsvText, MATCH_SEAT_COUNT } = require('./match-summary.js');
+const { runProgress } = require('./run-progress.js');
 
 const REPO = path.resolve(__dirname, '..');
 const MATCH_DIR = path.join(REPO, 'data', 'matches');
@@ -335,6 +336,7 @@ async function dealRounds(method, rounds, outPath, seed, startRound) {
 
     const stats = new PlayHandStats();
     const started = Date.now();
+    const batchProgress = runProgress(`Batch ${method}`, rounds, outPath.replace(/\.json$/i, '') + '_progress.txt');
     let written = 0;
     let failures = 0;
 
@@ -350,11 +352,7 @@ async function dealRounds(method, rounds, outPath, seed, startRound) {
         if (written > 0) await writeChunk(stream, ',\n');
         await writeChunk(stream, JSON.stringify(result));
         written += 1;
-        if (written % 100 === 0 || written === 1) {
-            const elapsed = (Date.now() - started) / 1000;
-            const perRound = elapsed / written;
-            console.log(`Progress ${written}/${rounds} in ${elapsed.toFixed(0)}s (${perRound.toFixed(2)}s/round), failures ${failures}`);
-        }
+        batchProgress.report(written, () => `failures ${failures}`);
     }
 
     await writeChunk(stream, '\n]\n');
@@ -454,29 +452,61 @@ function playMatchDeal(methodA, methodB, seed, roundIndex, handStats) {
     };
 }
 
-// Play rounds [startRound, startRound + rounds) in this process; each deal goes to onDeal
-function playMatchRange(methodA, methodB, seed, startRound, rounds, onDeal) {
+// Play rounds [startRound, startRound + rounds) in this process; each deal goes to onDeal.
+// Yields to the event loop between deals so worker progress messages are sent as deals complete.
+async function playMatchRange(methodA, methodB, seed, startRound, rounds, onDeal) {
     const handStats = new PlayHandStats();
-    const started = Date.now();
     for (let offset = 0; offset < rounds; offset++) {
         onDeal(playMatchDeal(methodA, methodB, seed, startRound + offset, handStats));
-        const elapsed = (Date.now() - started) / 1000;
-        console.error(`Match rounds ${startRound}-${startRound + rounds - 1}: done ${offset + 1}/${rounds}` +
-            ` in ${elapsed.toFixed(0)}s (${(elapsed / (offset + 1)).toFixed(2)}s/round)`);
+        await new Promise((resolve) => setImmediate(resolve));
     }
 }
 
-// Child process for --workers: plays its round range and writes one JSON line per deal
-function runMatchWorker(methodA, methodB, seed, startRound, rounds, workerOutPath) {
-    const lines = [];
-    playMatchRange(methodA, methodB, seed, startRound, rounds, (matchDeal) => lines.push(JSON.stringify(matchDeal)));
-    fs.writeFileSync(workerOutPath, lines.join('\n') + '\n');
+// Running mean X (with standard error) and different-arrangement share over the deals finished so far, in completion order
+function runningMatchTally() {
+    let dealsDone = 0;
+    let dealAverageSum = 0;
+    let dealAverageSquareSum = 0;
+    let handsDone = 0;
+    let differentHands = 0;
+    return {
+        add(matchDeal) {
+            const dealAverage = matchDeal.hands.reduce((total, handRow) => total + handRow.scoreA, 0) / matchDeal.hands.length;
+            dealsDone += 1;
+            dealAverageSum += dealAverage;
+            dealAverageSquareSum += dealAverage * dealAverage;
+            handsDone += matchDeal.hands.length;
+            differentHands += matchDeal.hands.filter((handRow) => !handRow.sameArrangement).length;
+        },
+        get dealsDone() { return dealsDone; },
+        text() {
+            const meanX = dealAverageSum / dealsDone;
+            const variance = dealsDone > 1 ? Math.max(0, dealAverageSquareSum - dealsDone * meanX * meanX) / (dealsDone - 1) : null;
+            const standardErrorText = variance === null ? 'n/a' : Math.sqrt(variance / dealsDone).toFixed(4);
+            return `X mean ${meanX.toFixed(4)} SE ${standardErrorText}; different arrangements ${(100 * differentHands / handsDone).toFixed(1)}%`;
+        }
+    };
 }
 
-function spawnMatchWorker(workerArgs, workerOutPath) {
+// Child process for --workers: plays its round range, writes one JSON line per deal,
+// and sends each finished deal to the parent for its combined progress line
+async function runMatchWorker(methodA, methodB, seed, startRound, rounds, workerOutPath) {
+    const lines = [];
+    const pendingSends = [];
+    await playMatchRange(methodA, methodB, seed, startRound, rounds, (matchDeal) => {
+        lines.push(JSON.stringify(matchDeal));
+        if (process.send) pendingSends.push(new Promise((resolve) => process.send(matchDeal, resolve)));
+    });
+    fs.writeFileSync(workerOutPath, lines.join('\n') + '\n');
+    await Promise.all(pendingSends);
+    if (process.disconnect) process.disconnect();
+}
+
+function spawnMatchWorker(workerArgs, workerOutPath, onWorkerDeal) {
     return new Promise((resolve, reject) => {
         const child = spawn(process.execPath, [__filename, ...workerArgs, '--worker-out', workerOutPath],
-            { cwd: REPO, stdio: ['ignore', 'ignore', 'inherit'] });
+            { cwd: REPO, stdio: ['ignore', 'ignore', 'inherit', 'ipc'] });
+        child.on('message', onWorkerDeal);
         child.on('error', reject);
         child.on('exit', (exitCode) => exitCode === 0 ? resolve() : reject(new Error(`Worker ${workerArgs.join(' ')} exited ${exitCode}`)));
     });
@@ -514,9 +544,16 @@ async function runMatch() {
 
     const workerOutPath = argValue('--worker-out');
     if (workerOutPath) {
-        runMatchWorker(methodA, methodB, seed, startRound, rounds, workerOutPath);
+        await runMatchWorker(methodA, methodB, seed, startRound, rounds, workerOutPath);
         return;
     }
+    const fileStem = `match_${methodA}_vs_${methodB}_seed${seed}_${rounds}${startRound > 0 ? `_start${startRound}` : ''}`;
+    const matchProgress = runProgress(`Match ${methodA} vs ${methodB}`, rounds, path.join(MATCH_DIR, `${fileStem}_progress.txt`));
+    const matchTally = runningMatchTally();
+    const recordFinishedDeal = (matchDeal) => {
+        matchTally.add(matchDeal);
+        matchProgress.report(matchTally.dealsDone, () => matchTally.text());
+    };
 
     const matchMetadata = runMetadata({
         methodA, methodB, seed, rounds, startRound, endRound: startRound + rounds - 1, workers,
@@ -526,7 +563,10 @@ async function runMatch() {
     const started = Date.now();
     const matchDeals = [];
     if (workers === 1) {
-        playMatchRange(methodA, methodB, seed, startRound, rounds, (matchDeal) => matchDeals.push(matchDeal));
+        await playMatchRange(methodA, methodB, seed, startRound, rounds, (matchDeal) => {
+            matchDeals.push(matchDeal);
+            recordFinishedDeal(matchDeal);
+        });
     } else {
         const scratchDir = fs.mkdtempSync(path.join(os.tmpdir(), 'pyramid-match-'));
         const ranges = workerRanges(startRound, rounds, workers);
@@ -534,7 +574,7 @@ async function runMatch() {
         const passThroughArgs = ['--cdf-arrays'].flatMap((flag) => argValue(flag) ? [flag, argValue(flag)] : []);
         await Promise.all(ranges.map((range, rangeIndex) => spawnMatchWorker(
             ['--match', `${methodA},${methodB}`, '--seed', String(seed), '--start-round', String(range.startRound),
-                '--rounds', String(range.rounds), ...passThroughArgs], rangeOutPaths[rangeIndex])));
+                '--rounds', String(range.rounds), ...passThroughArgs], rangeOutPaths[rangeIndex], recordFinishedDeal)));
         for (const rangeOutPath of rangeOutPaths) {
             fs.readFileSync(rangeOutPath, 'utf8').trim().split('\n').forEach((line) => matchDeals.push(JSON.parse(line)));
         }
@@ -549,7 +589,6 @@ async function runMatch() {
         tablesChecked: matchDeals.length * 2,
         tablesNotZeroSum: matchDeals.reduce((count, matchDeal) => count + matchDeal.tableSums.filter((tableSum) => tableSum !== 0).length, 0)
     };
-    const fileStem = `match_${methodA}_vs_${methodB}_seed${seed}_${rounds}${startRound > 0 ? `_start${startRound}` : ''}`;
     fs.mkdirSync(MATCH_DIR, { recursive: true });
     const csvPath = path.join(MATCH_DIR, `${fileStem}.csv`);
     const jsonPath = path.join(MATCH_DIR, `${fileStem}.json`);
