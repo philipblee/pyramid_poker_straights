@@ -156,9 +156,17 @@ class PyramidPoker {
             showLoadingSpinner(2);
 
             // Use setTimeout to allow UI to update before computation
-            setTimeout(() => {
+            setTimeout(async () => {
                 try {
 //                    console.log('Log from handleAutoArrange: 🧠 Starting auto-arrange optimization...');
+
+                    // cdf: wait for the on-demand CDF data (spinner stays up); without it, stop with a message
+                    // rather than letting the solver fail into the highest-cards fallback
+                    if (gameConfig.config.winProbabilityMethod === 'cdf' && !await ensureCdfLoaded()) {
+                        hideLoadingSpinner();
+                        alert('BEST (cdf) could not load its data. Check your connection and press BEST again.');
+                        return;
+                    }
 
                     // Your existing auto-arrange logic
                     this.autoArrangeManager.autoArrangeHand();
@@ -381,6 +389,15 @@ class PyramidPoker {
 
         // Show spinner immediately
         showLoadingSpinner();
+
+        // AI seats solve with the same global method as BEST: under cdf, wait for the on-demand CDF data,
+        // and stop with a message rather than let the solver fail into the highest-cards fallback
+        if (gameConfig.config.winProbabilityMethod === 'cdf' && !await ensureCdfLoaded()) {
+            hideLoadingSpinner();
+            currentPlayer.aiTurnInProgress = false;
+            alert(`${currentPlayer.name} (cdf) could not load its data. Check your connection and reload the page.`);
+            return;
+        }
 
         await new Promise(resolve => setTimeout(resolve, 500)); // 500ms delay
 
