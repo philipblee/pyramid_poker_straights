@@ -22,8 +22,9 @@ const { CdfLookupTable } = require('../js/utilities/cdf-lookup.js');
 const REPO = path.resolve(__dirname, '..');
 const POSITIONS = ['back', 'middle', 'front'];
 const WILD_COUNTS = [0, 1, 2];
+// Numeric hand types as built in js/hands/evaluate-hand.js (5 is Flush, 6 is Straight: straights rank above flushes)
 const HAND_TYPE_NAMES = {
-    1: 'High Card', 2: 'Pair', 3: 'Two Pair', 4: 'Three of a Kind', 5: 'Straight', 6: 'Flush', 7: 'Full House',
+    1: 'High Card', 2: 'Pair', 3: 'Two Pair', 4: 'Three of a Kind', 5: 'Flush', 6: 'Straight', 7: 'Full House',
     8: 'Four of a Kind', 9: 'Straight Flush', 10: 'Five of a Kind', 11: '6-card Straight Flush', 12: 'Six of a Kind',
     13: '7-card Straight Flush', 14: 'Seven of a Kind', 15: '8-card Straight Flush', 16: 'Eight of a Kind'
 };
