@@ -21,7 +21,7 @@ const { runProgress } = require('./run-progress.js');
 
 const REPO = path.resolve(__dirname, '..');
 const MATCH_DIR = path.join(REPO, 'data', 'matches');
-const MATCH_METHODS = ['empirical', 'tiered', 'tiered2', 'netEV', 'cdf'];
+const MATCH_METHODS = ['empirical', 'tiered', 'tiered2', 'netEV', 'cdf', 'netEV_derived'];
 const AUTOMATICS_NOTE = 'Automatics are not modeled: every hand is solved and scored head-to-head, as in the batch runner.';
 
 // Table files read through fetch or loadCdfArrays, hashed into run metadata
@@ -39,6 +39,7 @@ const SCRIPT_FILES = [
     'js/utilities/tiered2-win-probability.js',
     'js/utilities/netEV-lookup-table.js',
     'js/utilities/cdf-lookup.js',
+    'js/utilities/derived-loss-penalties.js',
     'js/utilities/convert-to-card-model.js',
     'js/hands/evaluate-hand.js',
     'js/hands/hand-utilities.js',
@@ -305,6 +306,20 @@ async function loadMethodTable(method) {
         console.log(`CDF sample: front AA-K netEV ${pairEV} front trip aces netEV ${tripsEV}`);
         if (!(tripsEV > pairEV)) {
             throw new Error('CDF did not rank front trip aces above a front pair of aces');
+        }
+        return;
+    }
+    if (method === 'netEV_derived') {
+        const ok = await initializeTiered2WinProbability();
+        if (!ok) throw new Error('Tiered2 table failed to load');
+        const penaltyPath = path.resolve(REPO, 'data/derived_loss_penalties.json');
+        derivedLossPenalties.loadFromJson(JSON.parse(fs.readFileSync(penaltyPath, 'utf8')));
+        tableFilesRead.add(penaltyPath);
+        const pairEV = ScoringUtilities.netEVDerivedFromTiered2Rate({ hand_rank: [2, 14, 13], isIncomplete: false }, 'front');
+        const tripsEV = ScoringUtilities.netEVDerivedFromTiered2Rate({ hand_rank: [4, 14], isIncomplete: false }, 'front');
+        console.log(`netEV_derived penalties loaded from ${penaltyPath}. Sample: front AA-K ${pairEV} front trip aces ${tripsEV}`);
+        if (!(tripsEV > pairEV)) {
+            throw new Error('netEV_derived did not rank front trip aces above a front pair of aces');
         }
         return;
     }
