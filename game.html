@@ -390,17 +390,6 @@
                 console.log('⚠️ netEV Lookup Table failed to load');
             }
 
-            // Load CDF arrays (cdf method only); a failure here must not stop the other tables
-            try {
-                const cdfLoaded = typeof initializeCdfLookup === 'function'
-                    && await initializeCdfLookup('data/cdf_arrays_netev.json');
-                if (!cdfLoaded) {
-                    console.log('⚠️ CDF arrays failed to load');
-                }
-            } catch (error) {
-                console.log('⚠️ CDF arrays failed to load', error);
-            }
-
         <!-- Continue with other scripts... -->
 
             // Remove players from Realtime Database tables 1

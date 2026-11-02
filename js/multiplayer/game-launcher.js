@@ -71,6 +71,7 @@ async function launchGameInterface() {
     gameConfig.config.deckCount = tableSettings.deckCount;
     const savedAlgo = localStorage.getItem('bestAlgo');
     gameConfig.config.winProbabilityMethod = savedAlgo || tableSettings.winProbabilityMethod;
+    if (gameConfig.config.winProbabilityMethod === 'cdf') ensureCdfLoaded();
     const bestAlgoSelect = document.getElementById('bestAlgoSelect');
     if (bestAlgoSelect) {
         bestAlgoSelect.value = gameConfig.config.winProbabilityMethod;

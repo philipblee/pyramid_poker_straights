@@ -168,7 +168,7 @@ class CdfLookupTable {
      */
     positionMassArrays(position, w) {
         if (!this.isLoaded) {
-            throw new Error('CDF data not loaded');
+            throw new Error('CDF data not loaded: the cdf method needs ensureCdfLoaded() to finish first (it starts when cdf is selected)');
         }
         const positionArrays = this.cdfJson.positions[position];
         if (!positionArrays) {
@@ -263,12 +263,34 @@ async function initializeCdfLookup(url = 'data/cdf_arrays_netev.json') {
     return await cdfLookup.loadFromUrl(url);
 }
 
+// The browser's single pending CDF load, shared by every ensureCdfLoaded call; cleared on failure so a retry fetches again
+let cdfLoadPromise = null;
+
+/**
+ * Load the CDF arrays once, on demand (browser, when the cdf method is selected).
+ * Resolves true without fetching when cdfLookup is already loaded (node scripts load it with loadFromJson);
+ * while a load is in progress, returns that same promise.
+ * @param {string} url - URL of cdf_arrays JSON
+ * @returns {Promise<boolean>} - True if loaded
+ */
+function ensureCdfLoaded(url = 'data/cdf_arrays_netev.json') {
+    if (cdfLookup.isLoaded) return Promise.resolve(true);
+    if (!cdfLoadPromise) {
+        cdfLoadPromise = cdfLookup.loadFromUrl(url).then((cdfLoaded) => {
+            if (!cdfLoaded) cdfLoadPromise = null;
+            return cdfLoaded;
+        });
+    }
+    return cdfLoadPromise;
+}
+
 // Export for use in other modules
 if (typeof module !== 'undefined' && module.exports) {
     module.exports = {
         CdfLookupTable,
         cdfLookup,
         initializeCdfLookup,
+        ensureCdfLoaded,
         rankKeyFromHandTuple,
         isTupleWithoutSuits,
         compareRankKeys

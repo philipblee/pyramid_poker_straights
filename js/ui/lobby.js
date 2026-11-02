@@ -691,6 +691,7 @@ function saveTableSettings() {
         window.gameConfig.config.stakesSurrenderAmount = tableSettings.stakesSurrenderAmount;
         window.gameConfig.config.stakesMultiplierAmount = tableSettings.stakesMultiplierAmount;
         window.gameConfig.config.computerPlayers = tableSettings.computerPlayers;
+        // cdf is not offered in table settings yet; when it is, setting it here needs ensureCdfLoaded()
         window.gameConfig.config.winProbabilityMethod = tableSettings.winProbabilityMethod;
         window.gameConfig.config.automaticsAllowed = tableSettings.automaticsAllowed;
         window.gameConfig.findAutoEnabled = tableSettings.findAutoEnabled;
@@ -756,6 +757,7 @@ function setupListenForSettingsChanges(tableId) {
                     window.gameConfig.config.stakesSurrenderAmount = settings.stakesSurrenderAmount;
                     window.gameConfig.config.stakesMultiplierAmount = settings.stakesMultiplierAmount;
                     window.gameConfig.config.computerPlayers = settings.computerPlayers;
+                    // cdf is not offered in table settings yet; when it is, setting it here needs ensureCdfLoaded()
                     window.gameConfig.config.winProbabilityMethod = settings.winProbabilityMethod;
                     window.gameConfig.config.automaticsAllowed = settings.automaticsAllowed;
                     window.gameConfig.config.findAutoEnabled = settings.findAutoEnabled;
@@ -781,6 +783,7 @@ function saveTableSettings() {
     // 🔧 FIX: Sync to gameConfig immediately
     if (window.gameConfig) {
         window.gameConfig.config.rounds = tableSettings.rounds;
+        // cdf is not offered in table settings yet; when it is, setting it here needs ensureCdfLoaded()
         window.gameConfig.config.winProbabilityMethod = tableSettings.winProbabilityMethod;
         window.gameConfig.config.wildCardCount = tableSettings.wildCardCount;
         window.gameConfig.config.computerPlayers = tableSettings.computerPlayers;

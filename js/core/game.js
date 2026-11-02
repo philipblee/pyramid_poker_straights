@@ -64,6 +64,7 @@ class PyramidPoker {
                 bestAlgoSelect.value = savedAlgo;
                 bestAlgoSelect.style.background = '#27ae60';  // green — user has previously chosen
                 gameConfig.config.winProbabilityMethod = savedAlgo;
+                if (savedAlgo === 'cdf') ensureCdfLoaded();
             } else {
                 bestAlgoSelect.value = gameConfig.config.winProbabilityMethod;
                 // stays blue — no user choice yet
@@ -72,6 +73,7 @@ class PyramidPoker {
             // On change
             bestAlgoSelect.addEventListener('change', () => {
                 gameConfig.config.winProbabilityMethod = bestAlgoSelect.value;
+                if (bestAlgoSelect.value === 'cdf') ensureCdfLoaded();
                 localStorage.setItem('bestAlgo', bestAlgoSelect.value);
                 bestAlgoSelect.style.background = '#27ae60';  // green once user picks
             });

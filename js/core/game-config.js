@@ -56,6 +56,8 @@ class GameConfig {
     setWinProbabilityMethod(method) {
         this.config.winProbabilityMethod = method;
         this.saveToStorage();
+        // cdf data loads on demand; the promise lets callers wait for it
+        if (method === 'cdf') return ensureCdfLoaded();
     }
 
     getRounds() {
