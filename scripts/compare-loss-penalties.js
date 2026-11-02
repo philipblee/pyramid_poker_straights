@@ -165,4 +165,4 @@ function compareLossPenalties() {
 
 if (require.main === module) compareLossPenalties();
 
-module.exports = { compareLossPenalties };
+module.exports = { compareLossPenalties, lossCells, HAND_TYPE_NAMES };

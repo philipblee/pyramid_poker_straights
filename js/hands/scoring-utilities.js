@@ -79,6 +79,10 @@ static getPointsForHand(hand, position, cardCount = null) {
             return this.cdfExpectedPoints(hand, cards, position, wildCount);
         }
 
+        if (actualMethod === 'netEV_derived') {
+            return this.netEVDerivedFromTiered2Rate(hand, position);
+        }
+
         if (actualMethod === 'points') {
             const pointsIfWin = hand.positionScores[position];
             const strengthBonus = this.calculateTiebreaker(hand.handStrength);
@@ -220,6 +224,15 @@ static getPointsForHand(hand, position, cardCount = null) {
             : points;
         const penalty = this.lossPenalty(handType, position);
         return (p * seatPoints) - ((1 - p) * penalty);
+    }
+
+    // netEV_derived: formula netEV with the tiered2 win rate, but the loss penalty per (position, hand type)
+    // from derivedLossPenalties (js/utilities/derived-loss-penalties.js) instead of lossPenalty
+    static netEVDerivedFromTiered2Rate(hand, position) {
+        const winRate = this.getWinProbabilityForMethod('tiered2', position, hand);
+        const winProbability = (winRate == null || Number.isNaN(Number(winRate))) ? 0 : Number(winRate);
+        const derivedPenalty = derivedLossPenalties.penalty(position, this.numericHandType(hand));
+        return (winProbability * this.seatPoints(hand, position)) - ((1 - winProbability) * derivedPenalty);
     }
 
     static netEVFromTiered2Rate(hand, position) {

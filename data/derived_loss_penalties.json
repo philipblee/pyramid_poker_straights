@@ -1,0 +1,290 @@
+{
+  "meta": {
+    "description": "netEV_derived loss penalty per (position, hand type): cdf expected loss per lost comparison at w0, mass-weighted with the w0 mix",
+    "cdfArrays": "data/cdf_arrays_netev.json",
+    "cdfRun": "netev",
+    "cdfMode": "unfiltered",
+    "minDealtShare": 0.005,
+    "fallbackRule": "6+ card types, back Two Pair, types without cdf keys and types under minDealtShare use the nearest used type in the same position (ties to the lower type)",
+    "generatedBy": "scripts/derive-loss-penalties.js"
+  },
+  "penalties": {
+    "back": {
+      "1": {
+        "penalty": 2.773686,
+        "sourceType": 5,
+        "fallback": "no cdf keys",
+        "ownLossPerLoss": null
+      },
+      "2": {
+        "penalty": 2.773686,
+        "sourceType": 5,
+        "fallback": "no cdf keys",
+        "ownLossPerLoss": null
+      },
+      "3": {
+        "penalty": 2.773686,
+        "sourceType": 5,
+        "fallback": "excluded (low mass, noisy)",
+        "ownLossPerLoss": 2.767021
+      },
+      "4": {
+        "penalty": 2.773686,
+        "sourceType": 5,
+        "fallback": "no cdf keys",
+        "ownLossPerLoss": null
+      },
+      "5": {
+        "penalty": 2.773686,
+        "sourceType": 5,
+        "dealtShare": 0.007361
+      },
+      "6": {
+        "penalty": 2.853266,
+        "sourceType": 6,
+        "dealtShare": 0.078191
+      },
+      "7": {
+        "penalty": 3.555976,
+        "sourceType": 7,
+        "dealtShare": 0.446037
+      },
+      "8": {
+        "penalty": 5.120727,
+        "sourceType": 8,
+        "dealtShare": 0.290304
+      },
+      "9": {
+        "penalty": 6.515517,
+        "sourceType": 9,
+        "dealtShare": 0.112875
+      },
+      "10": {
+        "penalty": 8.271135,
+        "sourceType": 10,
+        "dealtShare": 0.025292
+      },
+      "11": {
+        "penalty": 8.271135,
+        "sourceType": 10,
+        "fallback": "6+ card hand",
+        "ownLossPerLoss": 9.526477
+      },
+      "12": {
+        "penalty": 8.271135,
+        "sourceType": 10,
+        "fallback": "6+ card hand",
+        "ownLossPerLoss": 11.438143
+      },
+      "13": {
+        "penalty": 8.271135,
+        "sourceType": 10,
+        "fallback": "6+ card hand",
+        "ownLossPerLoss": 12.015536
+      },
+      "14": {
+        "penalty": 8.271135,
+        "sourceType": 10,
+        "fallback": "6+ card hand",
+        "ownLossPerLoss": 14
+      },
+      "15": {
+        "penalty": 8.271135,
+        "sourceType": 10,
+        "fallback": "6+ card hand",
+        "ownLossPerLoss": 14
+      },
+      "16": {
+        "penalty": 8.271135,
+        "sourceType": 10,
+        "fallback": "no cdf keys",
+        "ownLossPerLoss": null
+      }
+    },
+    "middle": {
+      "1": {
+        "penalty": 1.977124,
+        "sourceType": 3,
+        "fallback": "no cdf keys",
+        "ownLossPerLoss": null
+      },
+      "2": {
+        "penalty": 1.977124,
+        "sourceType": 3,
+        "fallback": "dealt share 0.10% < 0.5%",
+        "ownLossPerLoss": 1.962343
+      },
+      "3": {
+        "penalty": 1.977124,
+        "sourceType": 3,
+        "dealtShare": 0.02921
+      },
+      "4": {
+        "penalty": 1.977124,
+        "sourceType": 3,
+        "fallback": "no cdf keys",
+        "ownLossPerLoss": null
+      },
+      "5": {
+        "penalty": 2.080911,
+        "sourceType": 5,
+        "dealtShare": 0.159824
+      },
+      "6": {
+        "penalty": 2.506325,
+        "sourceType": 6,
+        "dealtShare": 0.342795
+      },
+      "7": {
+        "penalty": 3.805002,
+        "sourceType": 7,
+        "dealtShare": 0.386134
+      },
+      "8": {
+        "penalty": 8.20431,
+        "sourceType": 8,
+        "dealtShare": 0.077282
+      },
+      "9": {
+        "penalty": 8.20431,
+        "sourceType": 8,
+        "fallback": "dealt share 0.32% < 0.5%",
+        "ownLossPerLoss": 10.572378
+      },
+      "10": {
+        "penalty": 8.20431,
+        "sourceType": 8,
+        "fallback": "dealt share 0.04% < 0.5%",
+        "ownLossPerLoss": 12.914734
+      },
+      "11": {
+        "penalty": 8.20431,
+        "sourceType": 8,
+        "fallback": "6+ card hand",
+        "ownLossPerLoss": 16
+      },
+      "12": {
+        "penalty": 8.20431,
+        "sourceType": 8,
+        "fallback": "no cdf keys",
+        "ownLossPerLoss": null
+      },
+      "13": {
+        "penalty": 8.20431,
+        "sourceType": 8,
+        "fallback": "no cdf keys",
+        "ownLossPerLoss": null
+      },
+      "14": {
+        "penalty": 8.20431,
+        "sourceType": 8,
+        "fallback": "no cdf keys",
+        "ownLossPerLoss": null
+      },
+      "15": {
+        "penalty": 8.20431,
+        "sourceType": 8,
+        "fallback": "no cdf keys",
+        "ownLossPerLoss": null
+      },
+      "16": {
+        "penalty": 8.20431,
+        "sourceType": 8,
+        "fallback": "no cdf keys",
+        "ownLossPerLoss": null
+      }
+    },
+    "front": {
+      "1": {
+        "penalty": 2.589749,
+        "sourceType": 1,
+        "dealtShare": 0.061374
+      },
+      "2": {
+        "penalty": 3.125141,
+        "sourceType": 2,
+        "dealtShare": 0.427029
+      },
+      "3": {
+        "penalty": 3.125141,
+        "sourceType": 2,
+        "fallback": "no cdf keys",
+        "ownLossPerLoss": null
+      },
+      "4": {
+        "penalty": 4.072157,
+        "sourceType": 4,
+        "dealtShare": 0.057346
+      },
+      "5": {
+        "penalty": 4.194897,
+        "sourceType": 5,
+        "dealtShare": 0.256677
+      },
+      "6": {
+        "penalty": 4.509591,
+        "sourceType": 6,
+        "dealtShare": 0.145853
+      },
+      "7": {
+        "penalty": 5.441825,
+        "sourceType": 7,
+        "dealtShare": 0.050036
+      },
+      "8": {
+        "penalty": 5.441825,
+        "sourceType": 7,
+        "fallback": "dealt share 0.17% < 0.5%",
+        "ownLossPerLoss": 12
+      },
+      "9": {
+        "penalty": 5.441825,
+        "sourceType": 7,
+        "fallback": "no cdf keys",
+        "ownLossPerLoss": null
+      },
+      "10": {
+        "penalty": 5.441825,
+        "sourceType": 7,
+        "fallback": "no cdf keys",
+        "ownLossPerLoss": null
+      },
+      "11": {
+        "penalty": 5.441825,
+        "sourceType": 7,
+        "fallback": "no cdf keys",
+        "ownLossPerLoss": null
+      },
+      "12": {
+        "penalty": 5.441825,
+        "sourceType": 7,
+        "fallback": "no cdf keys",
+        "ownLossPerLoss": null
+      },
+      "13": {
+        "penalty": 5.441825,
+        "sourceType": 7,
+        "fallback": "no cdf keys",
+        "ownLossPerLoss": null
+      },
+      "14": {
+        "penalty": 5.441825,
+        "sourceType": 7,
+        "fallback": "no cdf keys",
+        "ownLossPerLoss": null
+      },
+      "15": {
+        "penalty": 5.441825,
+        "sourceType": 7,
+        "fallback": "no cdf keys",
+        "ownLossPerLoss": null
+      },
+      "16": {
+        "penalty": 5.441825,
+        "sourceType": 7,
+        "fallback": "no cdf keys",
+        "ownLossPerLoss": null
+      }
+    }
+  }
+}
