@@ -1,25 +1,37 @@
 //game-state-manager.js handles game transitions for multi-human, multi-device coordination
 
+/**
+ * 🧪 Debug overlay (only with ?debug in the URL): this client's round guards and popup now,
+ * plus the last 8 states received
+ */
+function updateDebugOverlay() {
+    let debugOverlay = document.getElementById('debugStateOverlay');
+    if (!debugOverlay) {
+        debugOverlay = document.createElement('div');
+        debugOverlay.id = 'debugStateOverlay';
+        debugOverlay.style.cssText = 'position:fixed;bottom:4px;left:4px;z-index:99999;' +
+            'background:rgba(0,0,0,.75);color:#0f0;font:11px monospace;padding:4px;' +
+            'pointer-events:none;white-space:pre';
+        document.body.appendChild(debugOverlay);
+    }
+    const popupShown = document.getElementById('scoringPopup')?.style.display === 'block';
+    debugOverlay.textContent =
+        `me=${window.uniquePlayerName} owner=${window.isOwner}\n` +
+        `round=${window.game?.currentRound} lastScoringRound=${window.multiDeviceIntegration?.lastScoringRound} popup=${popupShown}\n` +
+        (window.debugStateTrail || []).join('\n');
+}
+
+// Refresh every second so the values stay current between states; one interval only
+if (new URLSearchParams(location.search).has('debug') && !window.debugOverlayInterval) {
+    window.debugOverlayInterval = setInterval(updateDebugOverlay, 1000);
+}
+
 async function handleTableStateChange(tableState) {
 
-    // 🧪 Debug overlay (only with ?debug in the URL): last 8 states received plus this client's round guards
     if (new URLSearchParams(location.search).has('debug')) {
         window.debugStateTrail = [...(window.debugStateTrail || []),
             `${tableState} @${new Date().toLocaleTimeString()}`].slice(-8);
-        let debugOverlay = document.getElementById('debugStateOverlay');
-        if (!debugOverlay) {
-            debugOverlay = document.createElement('div');
-            debugOverlay.id = 'debugStateOverlay';
-            debugOverlay.style.cssText = 'position:fixed;bottom:4px;left:4px;z-index:99999;' +
-                'background:rgba(0,0,0,.75);color:#0f0;font:11px monospace;padding:4px;' +
-                'pointer-events:none;white-space:pre';
-            document.body.appendChild(debugOverlay);
-        }
-        const popupShown = document.getElementById('scoringPopup')?.style.display === 'block';
-        debugOverlay.textContent =
-            `me=${window.uniquePlayerName} owner=${window.isOwner}\n` +
-            `round=${window.game?.currentRound} lastScoringRound=${window.multiDeviceIntegration?.lastScoringRound} popup=${popupShown}\n` +
-            window.debugStateTrail.join('\n');
+        updateDebugOverlay();
     }
 
     console.log('═══════════════════════════════════════');
