@@ -218,6 +218,7 @@ async function handleTableStateChange(tableState) {
                     const playerNames = window.game.playerManager.getPlayerNames();
                     const localIndex = playerNames.indexOf(window.uniquePlayerName);
                     console.log(`🧪 PLAYING localIndex=${localIndex} me=${window.uniquePlayerName} names=${JSON.stringify(playerNames)}`);
+                    remoteDebugLogger('playingLocalIndex', { localIndex, me: window.uniquePlayerName, playerNames });
 
                     if (localIndex >= 0) {
                         window.game.playerManager.currentPlayerIndex = localIndex;
@@ -411,6 +412,7 @@ async function setTableState(newState, delayMs = 1000) {
         await firebase.database().ref(`tables/${tableId}/tableState`).set(newState);
         console.log('✅ State set successfully after delay');
         console.log(`🧪 WROTE tableState=${newState} @${Date.now()}`);
+        remoteDebugLogger('wroteTableState', { newState });
     } catch (error) {
         console.log('❌ Error setting state:', error);
     }

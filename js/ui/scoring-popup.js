@@ -208,6 +208,7 @@ async function showScoringPopup(game, detailedResults, roundScores, specialPoint
     const popupStartTime = performance.now();
     let popupStep = 'start';
     console.log(`🧪 showScoringPopup start round=${roundNumber ?? game.currentRound}`);
+    remoteDebugLogger('showScoringPopupStart', { roundNumber: roundNumber ?? game.currentRound });
 
     try {
 
@@ -278,6 +279,7 @@ async function showScoringPopup(game, detailedResults, roundScores, specialPoint
         const potSnapshot = await firebase.database().ref(`tables/${tableId}/pot`).once('value');
         const pot = potSnapshot.val() || 0;
         console.log(`🧪 showScoringPopup pot read pot=${pot} after ${(performance.now() - popupStartTime).toFixed(0)}ms`);
+        remoteDebugLogger('potRead', { pot, elapsedMs: Math.round(performance.now() - popupStartTime) });
         popupStep = 'render tables';
 
         window.game.currentRoundPot = pot;
@@ -307,6 +309,7 @@ async function showScoringPopup(game, detailedResults, roundScores, specialPoint
         popupStep = 'distributeChips';
         const chipChanges = await distributeChips();
         console.log(`🧪 showScoringPopup distributeChips done after ${(performance.now() - popupStartTime).toFixed(0)}ms`);
+        remoteDebugLogger('distributeChipsDone', { elapsedMs: Math.round(performance.now() - popupStartTime) });
         popupStep = 'round summary';
 
         // 🔧 NEW: If all surrendered, use corrected financial data
@@ -334,6 +337,7 @@ async function showScoringPopup(game, detailedResults, roundScores, specialPoint
 
         popup.style.display = 'block';
         console.log(`🧪 popup shown after ${(performance.now() - popupStartTime).toFixed(0)}ms`);
+        remoteDebugLogger('popupShown', { elapsedMs: Math.round(performance.now() - popupStartTime) }, true);
         popupStep = 'per-player chip reads';
 
         // Chip summary - add last so it positions correctly
@@ -399,10 +403,12 @@ async function showScoringPopup(game, detailedResults, roundScores, specialPoint
 
         chipSummaryDiv.innerHTML = chipLinesHTML;
         console.log(`🧪 showScoringPopup per-player chip reads done after ${(performance.now() - popupStartTime).toFixed(0)}ms`);
+        remoteDebugLogger('perPlayerChipReadsDone', { elapsedMs: Math.round(performance.now() - popupStartTime) });
         popupStep = 'show popup';
 
         popup.style.display = 'block';
         console.log(`🧪 popup shown (with chip summary) after ${(performance.now() - popupStartTime).toFixed(0)}ms`);
+        remoteDebugLogger('popupShownWithChipSummary', { elapsedMs: Math.round(performance.now() - popupStartTime) }, true);
 
         // ✅ Always enable button when showing popup
         const closeButton = popup.querySelector('.btn.btn-primary');
@@ -436,6 +442,7 @@ async function showScoringPopup(game, detailedResults, roundScores, specialPoint
         console.log('🔍 showScoringPopup END - button disabled:', document.querySelector('#scoringPopup .btn.btn-primary')?.disabled);
     } catch (error) {
         console.error(`🧪 showScoringPopup FAILED at ${popupStep} after ${(performance.now() - popupStartTime).toFixed(0)}ms`, error);
+        remoteDebugLogger('showScoringPopupFailed', { popupStep, elapsedMs: Math.round(performance.now() - popupStartTime), error: String(error?.stack || error).slice(0, 300) }, true);
         throw error;
     }
 }

@@ -42,6 +42,9 @@ class GameConfig {
 
             // automatics:
             automaticsAllowed: 'yes',       // 'yes' or 'no' - allow automatic hands
+
+            // remote debug logging (RTDB debugLogs/):
+            remoteDebugLogging: 'yes',      // 'yes' or 'no' - send debug events to Firebase
         };
 
 //        this.loadFromStorage();

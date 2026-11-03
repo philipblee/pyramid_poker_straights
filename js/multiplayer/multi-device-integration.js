@@ -38,6 +38,7 @@ class MultiDeviceIntegration {
         this.tableStateListener = tableStateRef.on('value', (snapshot) => {
             const tableState = snapshot.val();
             console.log(`🧪 RECV tableState=${tableState} round=${window.game?.currentRound} @${Date.now()}`);
+            remoteDebugLogger('recvTableState', { tableState, round: window.game?.currentRound }, tableState === 'scoring' || tableState === 'round_complete');
 //            console.log('🔥 Table state updated:', tableState);
 
             // Store the current state value
@@ -256,10 +257,12 @@ class MultiDeviceIntegration {
         const previousScoringRound = this.lastScoringRound;
         this.lastScoringRound = scoringRound;
         console.log(`🧪 proceedToScoring start round=${scoringRound} @${Date.now()}`);
+        remoteDebugLogger('proceedToScoringStart', { scoringRound });
 
         // On failure, give the round back so a later SCORING event or retry can score it
         const releaseScoringGuard = (error, failedStep) => {
             console.error(`🧪 proceedToScoring FAILED at ${failedStep} round=${scoringRound} @${Date.now()}`, error);
+            remoteDebugLogger('proceedToScoringFailed', { failedStep, scoringRound, error: String(error?.stack || error).slice(0, 300) }, true);
             // Not on the owner: it calls proceedToScoring twice (SCORING handler + 2s timer) and distributeChips is not idempotent, so a reset could pay chips twice
             if (!window.isOwner && this.lastScoringRound === scoringRound) {
                 this.lastScoringRound = previousScoringRound;
@@ -269,6 +272,7 @@ class MultiDeviceIntegration {
         try {
             await this.RetrieveAllArrangementsFromFirebase();
             console.log(`🧪 proceedToScoring arrangements loaded=${window.game.submittedHands.size} @${Date.now()}`);
+            remoteDebugLogger('proceedToScoringArrangementsLoaded', { scoringRound, arrangementCount: window.game.submittedHands.size });
         } catch (error) {
             releaseScoringGuard(error, 'RetrieveAllArrangementsFromFirebase');
             return;
