@@ -1,9 +1,22 @@
 // js/core/round-manager.js
 // Round and tournament lifecycle management
 
+/**
+ * Hide the arrangement browser (arrows + counter) and drop the previous hand's top arrangements
+ */
+function clearArrangementBrowser() {
+    window.topArrangements = [];
+    window.topArrangementIndex = 0;
+    window.topArrangementShownScore = null;
+    document.getElementById('prevArrangement').style.display = 'none';
+    document.getElementById('nextArrangement').style.display = 'none';
+    document.getElementById('arrangementCounter').style.display = 'none';
+}
+
 PyramidPoker.prototype.startNewGame = async function() {
         // Add this when a new game starts
         resetGameTimer();
+        clearArrangementBrowser();
 
 
         // 🔧 FIX: Refresh ALL settings from current config (not stale constructor values)
@@ -169,6 +182,7 @@ PyramidPoker.prototype.startNewRound = async function() {
         }
 
         hideDecisionButtons();
+        clearArrangementBrowser();
 
         // Clear surrender notice from previous round
         const surrenderNotice = document.getElementById('surrenderNotice');
@@ -192,15 +206,10 @@ PyramidPoker.prototype.startNewRound = async function() {
         if (this.automaticHands) {
             this.automaticHands.clear();
         }
-        window.topArrangements = [];
-        window.topArrangementIndex = 0;
 
         await this.dealCardsToAllPlayers();
         resetAutomaticButton();
         hideAutomaticMessage();
-        document.getElementById('prevArrangement').style.display = 'none';
-        document.getElementById('nextArrangement').style.display = 'none';
-        document.getElementById('arrangementCounter').style.display = 'none';
 
         // Only load hand immediately for owner/single-player AND not kitty variant
         // Multi-device kitty uses state machine, everything else loads immediately
