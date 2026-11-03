@@ -218,7 +218,7 @@ function updateStatus(game) {
 
         if (isDecisionPhase) {
             // Decision phase message
-            status.innerHTML = `Round ${roundNum} of ${maxRounds}: ${getCompactName(currentPlayer.name)} - Choose PLAY or SURRENDER, then SUBMIT DECISION`;
+            status.innerHTML = `Round ${roundNum} of ${maxRounds}: ${getCompactName(currentPlayer.name)} - Choose PLAY or SURRENDER, then DECLARE`;
         } else if (game.multiDeviceMode && game.surrenderDecisions?.get(window.uniquePlayerName) === 'surrender') {
             // Multiplayer: local player surrendered this hand
             status.innerHTML = `Round ${roundNum} of ${maxRounds}: you surrendered, waiting for the other players`;
