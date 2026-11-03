@@ -147,11 +147,6 @@ PyramidPoker.prototype.startNewRound = async function() {
             return;
         }
 
-        // Continue with new round
-        if (window.isOwner) {
-            setTableState(TABLE_STATES.DEALING);
-        }
-
         // Advance to next round
         this.currentRound++;
         console.log(`🔄 Starting Round ${this.currentRound} of ${this.maxRounds}...`);
