@@ -160,6 +160,14 @@ async function handleTableStateChange(tableState) {
             // Reload current player's hand to trigger 13-card slice
             if (window.game) {
                 window.game.loadCurrentPlayerHand();
+
+                // Prompt for the decision unless the local player has already declared
+                const statusDiv = document.getElementById('status');
+                if (statusDiv && !window.game.surrenderDecisions?.has(window.uniquePlayerName)) {
+                    const roundNum = window.game.currentRound;
+                    const maxRounds = window.game.maxRounds;
+                    statusDiv.innerHTML = `Round ${roundNum} of ${maxRounds}: choose PLAY or SURRENDER, then click DECLARE`;
+                }
             }
             break;
 
