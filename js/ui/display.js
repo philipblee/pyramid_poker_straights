@@ -479,15 +479,19 @@ function updateButtonStates(game) {
     const autoArrangeBtn = document.getElementById('autoArrange');
     const bestAlgoSelect = document.getElementById('bestAlgoSelect');
 
+    // Multi-device: a player who surrendered this hand has nothing to arrange
+    const localSurrendered = game.multiDeviceMode &&
+        game.surrenderDecisions?.get(window.uniquePlayerName) === 'surrender';
+
     console.log('🔍 display.js button visibility check running, autoArrangeAllowed:', gameConfig.config.autoArrangeAllowed);
 
     if (autoArrangeBtn) {
         autoArrangeBtn.style.display =
-            (gameConfig.config.autoArrangeAllowed === 'yes') ? 'inline-block' : 'none';
+            (gameConfig.config.autoArrangeAllowed === 'yes' && !localSurrendered) ? 'inline-block' : 'none';
     }
     if (bestAlgoSelect) {
         bestAlgoSelect.style.display =
-            (gameConfig.config.autoArrangeAllowed === 'yes') ? 'inline-block' : 'none';
+            (gameConfig.config.autoArrangeAllowed === 'yes' && !localSurrendered) ? 'inline-block' : 'none';
     }
 
 
@@ -509,6 +513,9 @@ function updateButtonStates(game) {
              game.tableState === 'decide_playing')) {
             return; // Exit early, keep decision buttons
         }
+
+        // Surrendered: keep the arranging buttons disabled (set by hideGameAreaForSurrenderedPlayer)
+        if (localSurrendered) return;
 
         // NEW LOGIC: Check if any players have started playing (moved cards around)
         const gameInProgress = game.playerManager.getReadyCount() > 0 ||

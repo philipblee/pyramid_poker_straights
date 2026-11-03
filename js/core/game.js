@@ -146,6 +146,9 @@ class PyramidPoker {
     }
 
     handleAutoArrangeToggle() {
+        // Multi-device: a player who surrendered this hand cannot run BEST
+        if (this.multiDeviceMode && this.surrenderDecisions?.get(window.uniquePlayerName) === 'surrender') return;
+
         if (this.autoArrangeUsed) {
             // Undo auto-arrange (instant, no spinner needed)
             this.restoreToDealtState();
