@@ -2,6 +2,26 @@
 
 async function handleTableStateChange(tableState) {
 
+    // 🧪 Debug overlay (only with ?debug in the URL): last 8 states received plus this client's round guards
+    if (new URLSearchParams(location.search).has('debug')) {
+        window.debugStateTrail = [...(window.debugStateTrail || []),
+            `${tableState} @${new Date().toLocaleTimeString()}`].slice(-8);
+        let debugOverlay = document.getElementById('debugStateOverlay');
+        if (!debugOverlay) {
+            debugOverlay = document.createElement('div');
+            debugOverlay.id = 'debugStateOverlay';
+            debugOverlay.style.cssText = 'position:fixed;bottom:4px;left:4px;z-index:99999;' +
+                'background:rgba(0,0,0,.75);color:#0f0;font:11px monospace;padding:4px;' +
+                'pointer-events:none;white-space:pre';
+            document.body.appendChild(debugOverlay);
+        }
+        const popupShown = document.getElementById('scoringPopup')?.style.display === 'block';
+        debugOverlay.textContent =
+            `me=${window.uniquePlayerName} owner=${window.isOwner}\n` +
+            `round=${window.game?.currentRound} lastScoringRound=${window.multiDeviceIntegration?.lastScoringRound} popup=${popupShown}\n` +
+            window.debugStateTrail.join('\n');
+    }
+
     console.log('═══════════════════════════════════════');
     console.log('📡 TABLE STATE CHANGE DETECTED');
     console.log('  - isOwner:', this.isOwner);
@@ -185,6 +205,7 @@ async function handleTableStateChange(tableState) {
                     // Find local player's index and set as current player
                     const playerNames = window.game.playerManager.getPlayerNames();
                     const localIndex = playerNames.indexOf(window.uniquePlayerName);
+                    console.log(`🧪 PLAYING localIndex=${localIndex} me=${window.uniquePlayerName} names=${JSON.stringify(playerNames)}`);
 
                     if (localIndex >= 0) {
                         window.game.playerManager.currentPlayerIndex = localIndex;
@@ -377,6 +398,7 @@ async function setTableState(newState, delayMs = 1000) {
     try {
         await firebase.database().ref(`tables/${tableId}/tableState`).set(newState);
         console.log('✅ State set successfully after delay');
+        console.log(`🧪 WROTE tableState=${newState} @${Date.now()}`);
     } catch (error) {
         console.log('❌ Error setting state:', error);
     }

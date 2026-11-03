@@ -37,6 +37,7 @@ class MultiDeviceIntegration {
         // Listen for changes
         this.tableStateListener = tableStateRef.on('value', (snapshot) => {
             const tableState = snapshot.val();
+            console.log(`🧪 RECV tableState=${tableState} round=${window.game?.currentRound} @${Date.now()}`);
 //            console.log('🔥 Table state updated:', tableState);
 
             // Store the current state value

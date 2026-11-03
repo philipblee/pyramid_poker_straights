@@ -1547,6 +1547,7 @@ PyramidPoker.prototype.handleNonOwnerCardRetrieval = async function() {
 
     const myPlayerName = window.uniquePlayerName;
     const myActualHand = this.playerHands.get(myPlayerName);
+    console.log(`🧪 my hand after retrieve: ${myActualHand?.cards?.length} cards, back=${myActualHand?.back?.length}, first=${JSON.stringify(myActualHand?.cards?.[0])}`);
     const localPlayer0Name = this.playerManager.players[0].name;
 
     console.log('🔄 Loading my cards into local Player 0 slot');
