@@ -205,219 +205,239 @@ function getCardCountFromSubmittedHands(game, playerName, position) {
 
 // Enhanced showScoringPopup with proper large hand support
 async function showScoringPopup(game, detailedResults, roundScores, specialPoints, roundNumber = null) {
+    const popupStartTime = performance.now();
+    let popupStep = 'start';
+    console.log(`🧪 showScoringPopup start round=${roundNumber ?? game.currentRound}`);
 
-    // CAPTURE SCORES FOR STATS - Check all possible score sources
-    window.lastGameDetailedResults = detailedResults;
-    window.lastGameRoundScores = roundScores;
-    window.lastGameScores = {};
+    try {
 
-    // Try detailedResults first
-    if (detailedResults && detailedResults.length > 0) {
-        detailedResults.forEach(result => {
-            window.lastGameScores[result.player1] = (window.lastGameScores[result.player1] || 0) + result.player1Score;
-            window.lastGameScores[result.player2] = (window.lastGameScores[result.player2] || 0) + result.player2Score;
+        // CAPTURE SCORES FOR STATS - Check all possible score sources
+        window.lastGameDetailedResults = detailedResults;
+        window.lastGameRoundScores = roundScores;
+        window.lastGameScores = {};
+
+        // Try detailedResults first
+        if (detailedResults && detailedResults.length > 0) {
+            detailedResults.forEach(result => {
+                window.lastGameScores[result.player1] = (window.lastGameScores[result.player1] || 0) + result.player1Score;
+                window.lastGameScores[result.player2] = (window.lastGameScores[result.player2] || 0) + result.player2Score;
+            });
+        }
+
+
+        const popup = document.getElementById('scoringPopup');
+        const allPlayerHands = document.getElementById('allPlayerHands');
+        const roundRobinResults = document.getElementById('roundRobinResults');
+
+         // Clear previous round robin results content
+        roundRobinResults.innerHTML = '';  // Good — keep this
+
+        // Update the popup title
+        const title = roundNumber ? `Round ${roundNumber} Results` : `Round ${game.currentRound} Results`;
+        popup.querySelector('h2').textContent = `🏆 ${title}`;
+
+        // Determine hands to display
+        let handsToDisplay = game.submittedHands;
+        if (roundNumber && game.roundHistory) {
+            const historicalRound = game.roundHistory.find(r => r.roundNumber === roundNumber);
+            if (historicalRound) handsToDisplay = historicalRound.submittedHands;
+        }
+
+        // === Calculate playerTotals ONCE (net points this round) ===
+        // Use roundScores directly if available (it includes automatic points)
+        // Otherwise calculate from detailedResults
+        const playerTotals = {};
+
+        game.players.forEach(player => {
+            playerTotals[player.name] = 0;
         });
-    }
+
+        if (roundScores && roundScores instanceof Map && roundScores.size > 0) {
+            // Use roundScores directly - it already includes automatic points
+            roundScores.forEach((score, playerName) => {
+                if (playerTotals.hasOwnProperty(playerName)) {
+                    playerTotals[playerName] = score;
+                }
+            });
+        } else {
+            // Fallback: calculate from detailedResults (for backwards compatibility)
+            detailedResults.forEach(result => {
+                playerTotals[result.player1] += result.player1Score;
+                playerTotals[result.player2] += result.player2Score;
+            });
+        }
 
 
-    const popup = document.getElementById('scoringPopup');
-    const allPlayerHands = document.getElementById('allPlayerHands');
-    const roundRobinResults = document.getElementById('roundRobinResults');
+        window.game.lastRoundTotals = playerTotals;
+        window.game.lastGameScores = playerTotals;  // if sidebar uses this too
 
-     // Clear previous round robin results content
-    roundRobinResults.innerHTML = '';  // Good — keep this
+        // === Fetch pot from Firebase ===
+        const tableId = window.game?.currentTableId;
 
-    // Update the popup title
-    const title = roundNumber ? `Round ${roundNumber} Results` : `Round ${game.currentRound} Results`;
-    popup.querySelector('h2').textContent = `🏆 ${title}`;
+        popupStep = 'pot read';
+        const potSnapshot = await firebase.database().ref(`tables/${tableId}/pot`).once('value');
+        const pot = potSnapshot.val() || 0;
+        console.log(`🧪 showScoringPopup pot read pot=${pot} after ${(performance.now() - popupStartTime).toFixed(0)}ms`);
+        popupStep = 'render tables';
 
-    // Determine hands to display
-    let handsToDisplay = game.submittedHands;
-    if (roundNumber && game.roundHistory) {
-        const historicalRound = game.roundHistory.find(r => r.roundNumber === roundNumber);
-        if (historicalRound) handsToDisplay = historicalRound.submittedHands;
-    }
+        window.game.currentRoundPot = pot;
 
-    // === Calculate playerTotals ONCE (net points this round) ===
-    // Use roundScores directly if available (it includes automatic points)
-    // Otherwise calculate from detailedResults
-    const playerTotals = {};
+        // === Determine pot winners (excluding surrendered players) ===
+        const activePlayers = Object.keys(playerTotals).filter(playerName => {
+            const decision = window.game.surrenderDecisions?.get(playerName);
+            return decision !== 'surrender';
+        });
 
-    game.players.forEach(player => {
-        playerTotals[player.name] = 0;
-    });
+        const maxTotal = Math.max(...activePlayers.map(name => playerTotals[name]));
+        const winners = activePlayers.filter(p => playerTotals[p] === maxTotal);
 
-    if (roundScores && roundScores instanceof Map && roundScores.size > 0) {
-        // Use roundScores directly - it already includes automatic points
-        roundScores.forEach((score, playerName) => {
-            if (playerTotals.hasOwnProperty(playerName)) {
-                playerTotals[playerName] = score;
+    //    // === Show Head-to-Head Matrix ===
+        showHeadToHeadMatrix(game, detailedResults, playerTotals, pot, winners);
+
+        // Show All Players Hands
+        allPlayerHands.innerHTML = '';
+        showPlayerHands(game, handsToDisplay, allPlayerHands);
+
+        // Show Round Robin Scoring (detailed matchups)
+        roundRobinResults.innerHTML = '';
+        showRoundRobinScoring(detailedResults, game, roundRobinResults, roundScores);
+
+        // Distribute chips and then show Round Summary for Chips
+        // This chart includes initial ante, pot winnings and net payouts
+        popupStep = 'distributeChips';
+        const chipChanges = await distributeChips();
+        console.log(`🧪 showScoringPopup distributeChips done after ${(performance.now() - popupStartTime).toFixed(0)}ms`);
+        popupStep = 'round summary';
+
+        // 🔧 NEW: If all surrendered, use corrected financial data
+        let finalPot = pot;
+        let finalWinners = winners;
+        if (window.lastRoundFinancial?.winners) {
+            finalPot = window.lastRoundFinancial.pot;
+            finalWinners = window.lastRoundFinancial.winners;
+            console.log('🔧 Using financial data from distributeChips');
+        }
+
+        const financialHtml = showRoundSummaryForChips(
+            game,
+            window.game.surrenderDecisions,
+            finalPot,                                 // ← Use corrected pot
+            finalWinners,                            // ← Use corrected winners
+            null,
+            playerTotals,
+            chipChanges
+        );
+
+        if (financialHtml) {
+            roundRobinResults.innerHTML += financialHtml;
+        }
+
+        popup.style.display = 'block';
+        console.log(`🧪 popup shown after ${(performance.now() - popupStartTime).toFixed(0)}ms`);
+        popupStep = 'per-player chip reads';
+
+        // Chip summary - add last so it positions correctly
+        // This includes all players and includes pot and payouts (excludes ante because that was collected earlier)
+        const currentChips = window.lastKnownChips || 0;
+
+        const currentUser = firebase.auth().currentUser;
+        const userEmail = currentUser?.email || 'You';
+        const payoutMultiplier = window.gameConfig?.config?.stakesMultiplierAmount || 1;
+        const myTotal = playerTotals[userEmail] || 0;
+        const myPayout = myTotal * payoutMultiplier;
+        const myPotWin = finalWinners.includes(userEmail) ? Math.floor(finalPot / finalWinners.length) : 0;
+        const expectedChips = currentChips + myPayout + myPotWin;
+
+        // Chip summary for ALL players
+        let chipSummaryDiv = document.getElementById('popup-chip-summary');
+        if (!chipSummaryDiv) {
+            chipSummaryDiv = document.createElement('div');
+            chipSummaryDiv.id = 'popup-chip-summary';
+            chipSummaryDiv.style.cssText = 'padding: 10px; background: #2c3e50; color: white; border-radius: 8px; margin-bottom: 15px;';
+        }
+
+        // Insert right after h2, before the matrix
+        const titleH2 = popup.querySelector('h2');
+        titleH2.insertAdjacentElement('afterend', chipSummaryDiv);
+
+        // Build chip lines for all players
+    //    const payoutMultiplier = window.gameConfig?.config?.stakesMultiplierAmount || 1;
+        let chipLinesHTML = '';
+
+        for (const player of game.players) {
+            // Get Firebase key
+            const isAI = player.type === 'ai' || player.name.endsWith('_AI');
+            const playerKey = isAI
+                ? player.name
+                : player.name.replace(/\./g, ',').replace('@', '_at_');
+
+            // Read lastKnownChips from Firebase
+            const snapshot = await firebase.database().ref(`players/${playerKey}/lastKnownChips`).once('value');
+            const lastKnownChips = snapshot.val() || 0;
+
+            // Calculate changes
+            const playerTotal = playerTotals[player.name] || 0;
+            const playerPayout = playerTotal * payoutMultiplier;
+            const playerPotWin = finalWinners.includes(player.name) ? Math.floor(finalPot / finalWinners.length) : 0;
+            const totalChange = playerPayout + playerPotWin;
+
+            // Read actual chips after distribution
+            const chipsSnapshot = await firebase.database().ref(`players/${playerKey}/chips`).once('value');
+            const actualChips = chipsSnapshot.val() || 0;
+            const beforeChips = actualChips - totalChange;  // Calculate what it was before
+
+            const changeSign = totalChange >= 0 ? '+' : '';
+            const changeColor = totalChange > 0 ? '#4ecdc4' : totalChange < 0 ? '#ff6b6b' : '#ffd700';
+
+            chipLinesHTML += `<div style="margin: 5px 0;">
+                👤 ${player.name} | 💰 ${beforeChips.toLocaleString()}
+                <span style="color: ${changeColor}">${changeSign}${totalChange}</span>
+                = ${actualChips.toLocaleString()} chips
+            </div>`;
+
+        }
+
+        chipSummaryDiv.innerHTML = chipLinesHTML;
+        console.log(`🧪 showScoringPopup per-player chip reads done after ${(performance.now() - popupStartTime).toFixed(0)}ms`);
+        popupStep = 'show popup';
+
+        popup.style.display = 'block';
+        console.log(`🧪 popup shown (with chip summary) after ${(performance.now() - popupStartTime).toFixed(0)}ms`);
+
+        // ✅ Always enable button when showing popup
+        const closeButton = popup.querySelector('.btn.btn-primary');
+        if (closeButton) {
+            closeButton.disabled = false;
+            console.log('✅ Continue button enabled after chip distribution');
+            console.log('🔍 Button actual state - disabled:', closeButton.disabled, 'display:', closeButton.style.display);
+        }
+
+        // Return Promise that waits for close button
+        return new Promise((resolve) => {
+            if (window.gameConfig?.config?.gameDeviceMode === 'multi-device') {
+                // Multi-device: preserve enhanceContinueButton wrapper
+                const existingOnClick = closeButton.onclick;
+                closeButton.onclick = async () => {
+                    if (existingOnClick) {
+                        await existingOnClick.call(closeButton);
+                    }
+                    closeScoringPopup();
+                    resolve();
+                };
+            } else {
+                // Single-player: replace handler (no nesting)
+                closeButton.onclick = () => {
+                    closeScoringPopup();
+                    resolve();
+                };
             }
         });
-    } else {
-        // Fallback: calculate from detailedResults (for backwards compatibility)
-        detailedResults.forEach(result => {
-            playerTotals[result.player1] += result.player1Score;
-            playerTotals[result.player2] += result.player2Score;
-        });
+
+        console.log('🔍 showScoringPopup END - button disabled:', document.querySelector('#scoringPopup .btn.btn-primary')?.disabled);
+    } catch (error) {
+        console.error(`🧪 showScoringPopup FAILED at ${popupStep} after ${(performance.now() - popupStartTime).toFixed(0)}ms`, error);
+        throw error;
     }
-
-
-    window.game.lastRoundTotals = playerTotals;
-    window.game.lastGameScores = playerTotals;  // if sidebar uses this too
-
-    // === Fetch pot from Firebase ===
-    const tableId = window.game?.currentTableId;
-
-    const potSnapshot = await firebase.database().ref(`tables/${tableId}/pot`).once('value');
-    const pot = potSnapshot.val() || 0;
-
-    window.game.currentRoundPot = pot;
-
-    // === Determine pot winners (excluding surrendered players) ===
-    const activePlayers = Object.keys(playerTotals).filter(playerName => {
-        const decision = window.game.surrenderDecisions?.get(playerName);
-        return decision !== 'surrender';
-    });
-
-    const maxTotal = Math.max(...activePlayers.map(name => playerTotals[name]));
-    const winners = activePlayers.filter(p => playerTotals[p] === maxTotal);
-
-//    // === Show Head-to-Head Matrix ===
-    showHeadToHeadMatrix(game, detailedResults, playerTotals, pot, winners);
-
-    // Show All Players Hands
-    allPlayerHands.innerHTML = '';
-    showPlayerHands(game, handsToDisplay, allPlayerHands);
-
-    // Show Round Robin Scoring (detailed matchups)
-    roundRobinResults.innerHTML = '';
-    showRoundRobinScoring(detailedResults, game, roundRobinResults, roundScores);
-
-    // Distribute chips and then show Round Summary for Chips
-    // This chart includes initial ante, pot winnings and net payouts
-    const chipChanges = await distributeChips();
-
-    // 🔧 NEW: If all surrendered, use corrected financial data
-    let finalPot = pot;
-    let finalWinners = winners;
-    if (window.lastRoundFinancial?.winners) {
-        finalPot = window.lastRoundFinancial.pot;
-        finalWinners = window.lastRoundFinancial.winners;
-        console.log('🔧 Using financial data from distributeChips');
-    }
-
-    const financialHtml = showRoundSummaryForChips(
-        game,
-        window.game.surrenderDecisions,
-        finalPot,                                 // ← Use corrected pot
-        finalWinners,                            // ← Use corrected winners
-        null,
-        playerTotals,
-        chipChanges
-    );
-
-    if (financialHtml) {
-        roundRobinResults.innerHTML += financialHtml;
-    }
-
-    popup.style.display = 'block';
-
-    // Chip summary - add last so it positions correctly
-    // This includes all players and includes pot and payouts (excludes ante because that was collected earlier)
-    const currentChips = window.lastKnownChips || 0;
-
-    const currentUser = firebase.auth().currentUser;
-    const userEmail = currentUser?.email || 'You';
-    const payoutMultiplier = window.gameConfig?.config?.stakesMultiplierAmount || 1;
-    const myTotal = playerTotals[userEmail] || 0;
-    const myPayout = myTotal * payoutMultiplier;
-    const myPotWin = finalWinners.includes(userEmail) ? Math.floor(finalPot / finalWinners.length) : 0;
-    const expectedChips = currentChips + myPayout + myPotWin;
-
-    // Chip summary for ALL players
-    let chipSummaryDiv = document.getElementById('popup-chip-summary');
-    if (!chipSummaryDiv) {
-        chipSummaryDiv = document.createElement('div');
-        chipSummaryDiv.id = 'popup-chip-summary';
-        chipSummaryDiv.style.cssText = 'padding: 10px; background: #2c3e50; color: white; border-radius: 8px; margin-bottom: 15px;';
-    }
-
-    // Insert right after h2, before the matrix
-    const titleH2 = popup.querySelector('h2');
-    titleH2.insertAdjacentElement('afterend', chipSummaryDiv);
-
-    // Build chip lines for all players
-//    const payoutMultiplier = window.gameConfig?.config?.stakesMultiplierAmount || 1;
-    let chipLinesHTML = '';
-
-    for (const player of game.players) {
-        // Get Firebase key
-        const isAI = player.type === 'ai' || player.name.endsWith('_AI');
-        const playerKey = isAI
-            ? player.name
-            : player.name.replace(/\./g, ',').replace('@', '_at_');
-
-        // Read lastKnownChips from Firebase
-        const snapshot = await firebase.database().ref(`players/${playerKey}/lastKnownChips`).once('value');
-        const lastKnownChips = snapshot.val() || 0;
-
-        // Calculate changes
-        const playerTotal = playerTotals[player.name] || 0;
-        const playerPayout = playerTotal * payoutMultiplier;
-        const playerPotWin = finalWinners.includes(player.name) ? Math.floor(finalPot / finalWinners.length) : 0;
-        const totalChange = playerPayout + playerPotWin;
-
-        // Read actual chips after distribution
-        const chipsSnapshot = await firebase.database().ref(`players/${playerKey}/chips`).once('value');
-        const actualChips = chipsSnapshot.val() || 0;
-        const beforeChips = actualChips - totalChange;  // Calculate what it was before
-
-        const changeSign = totalChange >= 0 ? '+' : '';
-        const changeColor = totalChange > 0 ? '#4ecdc4' : totalChange < 0 ? '#ff6b6b' : '#ffd700';
-
-        chipLinesHTML += `<div style="margin: 5px 0;">
-            👤 ${player.name} | 💰 ${beforeChips.toLocaleString()}
-            <span style="color: ${changeColor}">${changeSign}${totalChange}</span>
-            = ${actualChips.toLocaleString()} chips
-        </div>`;
-
-    }
-
-    chipSummaryDiv.innerHTML = chipLinesHTML;
-
-    popup.style.display = 'block';
-
-    // ✅ Always enable button when showing popup
-    const closeButton = popup.querySelector('.btn.btn-primary');
-    if (closeButton) {
-        closeButton.disabled = false;
-        console.log('✅ Continue button enabled after chip distribution');
-        console.log('🔍 Button actual state - disabled:', closeButton.disabled, 'display:', closeButton.style.display);
-    }
-
-    // Return Promise that waits for close button
-    return new Promise((resolve) => {
-        if (window.gameConfig?.config?.gameDeviceMode === 'multi-device') {
-            // Multi-device: preserve enhanceContinueButton wrapper
-            const existingOnClick = closeButton.onclick;
-            closeButton.onclick = async () => {
-                if (existingOnClick) {
-                    await existingOnClick.call(closeButton);
-                }
-                closeScoringPopup();
-                resolve();
-            };
-        } else {
-            // Single-player: replace handler (no nesting)
-            closeButton.onclick = () => {
-                closeScoringPopup();
-                resolve();
-            };
-        }
-    });
-
-    console.log('🔍 showScoringPopup END - button disabled:', document.querySelector('#scoringPopup .btn.btn-primary')?.disabled);
 }
 
 // Close scoring popup and clear all hands for next round
