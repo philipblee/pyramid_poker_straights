@@ -161,6 +161,7 @@ function declareDecision(decision) {
 
     // Store the decision locally
     window.game.surrenderDecisions.set(currentPlayer.name, decision);
+    remoteDebugLogger('decisionDeclared', { decision, playerName: window.uniquePlayerName });
 
     // Store in Firebase for multi-device sync
     if (window.game.multiDeviceMode) {
@@ -286,6 +287,7 @@ function checkAllDecided() {
 
 async function handleAllDecided() {
     await loadSurrenderDecisionsIntoMap();
+    remoteDebugLogger('handleAllDecided', { decisions: Object.fromEntries(window.game.surrenderDecisions) }, true);
     await collectSurrenderPenalties();
     revealKittyCards();
 
@@ -393,6 +395,7 @@ async function collectSurrenderPenalties() {
     if (window.game.multiDeviceMode && !window.isOwner) return;
 
     let totalPenalties = 0;
+    const chargedPenalties = [];
 
     // Process each player's decision
     for (const [playerName, decision] of window.game.surrenderDecisions.entries()) {
@@ -418,15 +421,19 @@ async function collectSurrenderPenalties() {
 
             console.log(`💰 ${playerName} surrenders - paid ${surrenderPenalty} chips`);
             totalPenalties += surrenderPenalty;
+            chargedPenalties.push({ player: playerName, amount: surrenderPenalty, chipsAfter: result.snapshot.val() });
         }
     }
 
     if (totalPenalties > 0) {
         // Add to existing pot
-        await firebase.database().ref(`tables/${tableId}/pot`)
+        const potTransaction = await firebase.database().ref(`tables/${tableId}/pot`)
             .transaction(currentPot => (currentPot || 0) + totalPenalties);
 
         console.log(`✅ Collected ${totalPenalties} in surrender penalties. Added to pot.`);
+        chargedPenalties.forEach(({ player, amount, chipsAfter }) => {
+            remoteDebugLogger('surrenderPenaltyCharged', { player, amount, chipsAfter, potAfter: potTransaction.snapshot.val() }, true);
+        });
     }
 }
 
@@ -474,13 +481,19 @@ function setupOwnerDecisionListener() {
     const playerCount = window.game.playerManager.players.length;
 
     console.log(`👑 Owner setting up decision listener for ${playerCount} players`);
+    remoteDebugLogger('ownerDecisionListenerAttached', { round: window.game?.currentRound });
 
+    let lastLoggedDecidedCount = null;
     decisionListenerRef = firebase.database().ref(`tables/${tableId}/surrenderDecisions`);
     decisionListenerRef.on('value', (snapshot) => {
         const decisions = snapshot.val() || {};
         const decidedCount = Object.keys(decisions).length;
 
         console.log(`📊 Decisions: ${decidedCount}/${playerCount}`);
+        if (decidedCount !== lastLoggedDecidedCount) {
+            lastLoggedDecidedCount = decidedCount;
+            remoteDebugLogger('decisionCount', { decided: decidedCount, total: playerCount });
+        }
 
         // ✅ Show which players are waiting
         if (decidedCount > 0 && decidedCount < playerCount) {

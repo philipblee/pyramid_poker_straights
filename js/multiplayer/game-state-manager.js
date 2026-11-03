@@ -211,6 +211,7 @@ async function handleTableStateChange(tableState) {
 
                 if (localDecision === 'surrender') {
                     console.log(`🏳️ ${window.uniquePlayerName} surrendered - hiding cards`);
+                    remoteDebugLogger('localPlayerSurrendered', { player: window.uniquePlayerName });
                     hideGameAreaForSurrenderedPlayer(); 
                 } else {
                     console.log(`🎴 ${window.uniquePlayerName} playing - loading their hand`);
