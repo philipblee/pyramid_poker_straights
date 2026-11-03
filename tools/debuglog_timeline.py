@@ -195,8 +195,8 @@ def main():
     parser.add_argument('--round', dest='round_number')
     parser.add_argument('--tz', default='America/New_York')
     parser.add_argument('--out')
-    parser.add_argument('--gap-minutes', type=float, default=5,
-                        help='silence longer than this starts a new session (default 5)')
+    parser.add_argument('--gap-minutes', type=float, default=15,
+                        help='silence longer than this starts a new session (default 15)')
     arguments = parser.parse_args()
 
     with open(arguments.export_path, encoding='utf-8') as export_file:
