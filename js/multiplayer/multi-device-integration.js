@@ -246,18 +246,39 @@ class MultiDeviceIntegration {
 
     // Proceed to scoring phase
     async proceedToScoring() {
+        const scoringRound = window.game.currentRound;
 
-        if (this.lastScoringRound === window.game.currentRound) {
-            console.log(`Already processed scoring for round ${window.game.currentRound}`);
+        if (this.lastScoringRound === scoringRound) {
+            console.log(`Already processed scoring for round ${scoringRound}`);
             return;
         }
 
-        this.lastScoringRound = window.game.currentRound;
+        const previousScoringRound = this.lastScoringRound;
+        this.lastScoringRound = scoringRound;
+        console.log(`🧪 proceedToScoring start round=${scoringRound} @${Date.now()}`);
 
-        await this.RetrieveAllArrangementsFromFirebase();
+        // On failure, give the round back so a later SCORING event or retry can score it
+        const releaseScoringGuard = (error, failedStep) => {
+            console.error(`🧪 proceedToScoring FAILED at ${failedStep} round=${scoringRound} @${Date.now()}`, error);
+            // Not on the owner: it calls proceedToScoring twice (SCORING handler + 2s timer) and distributeChips is not idempotent, so a reset could pay chips twice
+            if (!window.isOwner && this.lastScoringRound === scoringRound) {
+                this.lastScoringRound = previousScoringRound;
+            }
+        };
+
+        try {
+            await this.RetrieveAllArrangementsFromFirebase();
+            console.log(`🧪 proceedToScoring arrangements loaded=${window.game.submittedHands.size} @${Date.now()}`);
+        } catch (error) {
+            releaseScoringGuard(error, 'RetrieveAllArrangementsFromFirebase');
+            return;
+        }
 
         if (window.game && window.game.calculateScores) {
-            window.game.calculateScores();
+            // Not awaited: calculateScores stays pending while the popup waits for Continue, which is normal;
+            // only a rejection (thrown before the popup shows) is a failure
+            window.game.calculateScores()
+                .catch((error) => releaseScoringGuard(error, 'calculateScores'));
         }
     }
 
