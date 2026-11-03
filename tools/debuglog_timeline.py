@@ -72,6 +72,21 @@ def flatten_debug_logs(export_tree, table_filter, round_filter):
     return flattened_events
 
 
+def assign_sessions(events, gap_minutes):
+    """Split each table's events into sessions wherever there is a long silence."""
+    gap_ms = gap_minutes * 60 * 1000
+    last_time_by_table = {}
+    session_by_table = defaultdict(int)
+    for event in events:
+        table_id = event['table']
+        last_time_ms = last_time_by_table.get(table_id)
+        if last_time_ms is not None and event['time_ms'] - last_time_ms > gap_ms:
+            session_by_table[table_id] += 1
+        last_time_by_table[table_id] = event['time_ms']
+        event['session'] = session_by_table[table_id] + 1
+    return events
+
+
 def summarize_event(event):
     """One short human-readable phrase for an event."""
     name, details = event['event'], event['details']
@@ -103,10 +118,10 @@ def format_time(time_ms, time_zone):
 def print_timeline(events, time_zone, write):
     grouped = defaultdict(list)
     for event in events:
-        grouped[(event['table'], event['round_folder'])].append(event)
-    for (table_id, round_folder), round_events in sorted(grouped.items(),
-                                                          key=lambda item: (item[0][0], int(item[0][1]))):
-        write(f"\n=== table {table_id} / round {round_folder} " + '=' * 40)
+        grouped[(event['table'], event['session'], event['round_folder'])].append(event)
+    for (table_id, session_number, round_folder), round_events in sorted(
+            grouped.items(), key=lambda item: (item[0][0], item[0][1], int(item[0][2]))):
+        write(f"\n=== table {table_id} / session {session_number} / round {round_folder} " + '=' * 30)
         previous_time_ms = None
         for event in round_events:
             gap = '' if previous_time_ms is None else f"+{(event['time_ms'] - previous_time_ms) / 1000:5.2f}s"
@@ -123,11 +138,13 @@ def find_anomalies(events, time_zone):
     by_player_round = defaultdict(list)
     players_by_round = defaultdict(set)
     for event in events:
-        by_player_round[(event['table'], event['round_folder'], event['player'])].append(event)
-        players_by_round[(event['table'], event['round_folder'])].add(event['player'])
+        by_player_round[(event['table'], event['session'], event['round_folder'], event['player'])].append(event)
+        players_by_round[(event['table'], event['session'], event['round_folder'])].add(event['player'])
 
-    for (table_id, round_folder, player), player_events in sorted(by_player_round.items()):
-        where = f"table {table_id} round {round_folder} {player}"
+    connected_once = set()
+    for (table_id, session_number, round_folder, player), player_events in sorted(
+            by_player_round.items(), key=lambda item: (item[0][0], item[0][1], int(item[0][2]), item[0][3])):
+        where = f"table {table_id} session {session_number} round {round_folder} {player}"
         received_states = [e['details'].get('tableState') for e in player_events if e['event'] == 'recvTableState']
         event_names = {e['event'] for e in player_events}
         is_owner = any(e['is_owner'] for e in player_events)
@@ -149,8 +166,10 @@ def find_anomalies(events, time_zone):
             if any(marker in event['event'] for marker in FAILURE_EVENT_MARKERS):
                 findings.append(('PROBLEM', f"{where} @ {format_time(event['time_ms'], time_zone)}: "
                                             f"{summarize_event(event)}"))
+            if event['event'] == 'rtdbConnected' and event['details'].get('connected') is True:
+                connected_once.add((table_id, session_number, player))
             if event['event'] == 'rtdbConnected' and event['details'].get('connected') is False \
-                    and event is not player_events[0]:
+                    and (table_id, session_number, player) in connected_once:
                 findings.append(('WARN', f"{where} @ {format_time(event['time_ms'], time_zone)}: "
                                          f"database connection dropped"))
             if event['event'] == 'visibility' and event['details'].get('visibilityState') == 'hidden':
@@ -159,14 +178,13 @@ def find_anomalies(events, time_zone):
             if event.get('dropped_before'):
                 findings.append(('WARN', f"{where}: {event['dropped_before']} log entries dropped before a batch"))
 
-    all_rounds = sorted({int(r) for (_, r) in players_by_round}, key=int)
-    for (table_id, round_folder), players_here in sorted(players_by_round.items()):
+    for (table_id, session_number, round_folder), players_here in sorted(players_by_round.items()):
         next_round = str(int(round_folder) + 1)
-        players_next = players_by_round.get((table_id, next_round))
+        players_next = players_by_round.get((table_id, session_number, next_round))
         if players_next:
             for stuck_player in sorted(players_here - players_next):
-                findings.append(('PROBLEM', f"table {table_id}: {stuck_player} logged round {round_folder} "
-                                            f"but nothing in round {next_round} while others did"))
+                findings.append(('PROBLEM', f"table {table_id} session {session_number}: {stuck_player} logged "
+                                            f"round {round_folder} but nothing in round {next_round} while others did"))
     return findings
 
 
@@ -177,13 +195,16 @@ def main():
     parser.add_argument('--round', dest='round_number')
     parser.add_argument('--tz', default='America/New_York')
     parser.add_argument('--out')
+    parser.add_argument('--gap-minutes', type=float, default=5,
+                        help='silence longer than this starts a new session (default 5)')
     arguments = parser.parse_args()
 
     with open(arguments.export_path, encoding='utf-8') as export_file:
         export_tree = json.load(export_file)
 
     time_zone = ZoneInfo(arguments.tz)
-    events = flatten_debug_logs(export_tree, arguments.table, arguments.round_number)
+    events = assign_sessions(flatten_debug_logs(export_tree, arguments.table, arguments.round_number),
+                             arguments.gap_minutes)
     output_lines = []
     write = output_lines.append
 
