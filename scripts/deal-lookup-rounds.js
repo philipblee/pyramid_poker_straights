@@ -7,7 +7,10 @@
 //   --cdf-arrays-b <path> --match only, B must be cdf: B's CDF arrays (A keeps --cdf-arrays), e.g. --match cdf,cdf
 //   --seed S             seeded deals: round r's deck comes from a PRNG keyed by (S, r) (batch path only;
 //                        the browser keeps Math.random). --start-round R numbers the first round R (default 0).
-// Batch runs also write <out>.meta.json (method, seed, rounds, git commit, table sha256s, node version, timestamp).
+//   node scripts/deal-lookup-rounds.js --method cdf --rounds N --seed S --out <file.json> [--workers W]
+//   --workers W (batch) needs --seed: W child processes split the rounds; the parent merges them in round order,
+//                        writing <out> and <out>.meta.json only after every worker succeeds.
+// Batch runs also write <out>.meta.json (method, seed, rounds, workers, git commit, table sha256s, node version, timestamp).
 // --match writes data/matches/match_<A>_vs_<B>_seed<S>_<N>[_start<R>].{json,csv}; pool batches with scripts/pool-matches.js.
 //   A cdf player is labelled cdf-<run> in the file name, <run> from its arrays' meta.run, with netev shown as gen0
 //   (e.g. match_cdf-gen1_vs_cdf-gen0_...).
@@ -15,6 +18,7 @@
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
+const readline = require('readline');
 const vm = require('vm');
 const crypto = require('crypto');
 const { execFileSync, spawn } = require('child_process');
@@ -344,30 +348,17 @@ function writeChunk(stream, text) {
     return new Promise((resolve) => stream.once('drain', resolve));
 }
 
-async function dealRounds(method, rounds, outPath, seed, startRound) {
-    if (gameConfig.config.winProbabilityMethod !== method) {
-        throw new Error(`winProbabilityMethod is "${gameConfig.config.winProbabilityMethod}", expected "${method}"`);
-    }
-    if (!MATCH_METHODS.includes(method)) {
-        throw new Error(`Refusing method "${method}"`);
-    }
-    gameConfig.config.wildCardCount = 2;
-    window.NETEV_USE_TIERED2_FORMULA = method === 'netEV';
+function endStream(stream) {
+    return new Promise((resolve, reject) => stream.end((error) => error ? reject(error) : resolve()));
+}
 
-    await loadMethodTable(method);
-    const metadataPath = outPath.replace(/\.json$/i, '') + '.meta.json';
-    const batchMetadata = runMetadata({ method, seed, rounds, startRound });
-
-    fs.mkdirSync(path.dirname(outPath), { recursive: true });
-    const stream = fs.createWriteStream(outPath);
-    await writeChunk(stream, '[\n');
-
+// Play rounds [startRound, startRound + rounds) in this process; each round's JSON text goes to onRound
+// (awaited) with the failure count so far. Returns the failure count. Yields to the event loop between
+// rounds so worker progress messages are sent as rounds complete.
+async function dealRoundRange(seed, startRound, rounds, onRound) {
     const stats = new PlayHandStats();
-    const started = Date.now();
-    const batchProgress = runProgress(`Batch ${method}`, rounds, outPath.replace(/\.json$/i, '') + '_progress.txt');
     let written = 0;
     let failures = 0;
-
     while (written < rounds) {
         const result = withSeededRound(seed, startRound + written, () => stats.playHandStats(6, 2));
         if (!result || result.error || !result.players || !result.scoringMatrix) {
@@ -377,14 +368,104 @@ async function dealRounds(method, rounds, outPath, seed, startRound) {
             if (failures > 50) throw new Error('Too many failed rounds');
             continue;
         }
-        if (written > 0) await writeChunk(stream, ',\n');
-        await writeChunk(stream, JSON.stringify(result));
+        await onRound(JSON.stringify(result), failures);
         written += 1;
-        batchProgress.report(written, () => `failures ${failures}`);
+        await new Promise((resolve) => setImmediate(resolve));
     }
+    return failures;
+}
 
+// Child process for batch --workers: plays its round range, writes one round JSON per line,
+// and tells the parent after each round for its combined progress line
+async function runBatchWorker(seed, startRound, rounds, workerOutPath) {
+    const stream = fs.createWriteStream(workerOutPath);
+    const pendingSends = [];
+    await dealRoundRange(seed, startRound, rounds, async (roundText) => {
+        await writeChunk(stream, roundText + '\n');
+        if (process.send) pendingSends.push(new Promise((resolve) => process.send({ roundDone: true }, resolve)));
+    });
+    await endStream(stream);
+    await Promise.all(pendingSends);
+    if (process.disconnect) process.disconnect();
+}
+
+// Batch --workers W > 1: children write their ranges to scratch files; once all succeed, the parent
+// streams them into outPath in round order with the single-process framing ('[\n', ',\n', '\n]\n').
+// The merge goes to <out>.partial, renamed at the end, so a failed run leaves no output.
+async function dealRoundsWithWorkers(method, seed, startRound, rounds, workers, outPath, batchProgress) {
+    const scratchDir = fs.mkdtempSync(path.join(os.tmpdir(), 'pyramid-batch-'));
+    const ranges = workerRanges(startRound, rounds, workers);
+    const rangeOutPaths = ranges.map((range) => path.join(scratchDir, `rounds_${range.startRound}.jsonl`));
+    const passThroughArgs = ['--cdf-arrays'].flatMap((flag) => argValue(flag) ? [flag, argValue(flag)] : []);
+    let roundsDone = 0;
+    await Promise.all(ranges.map((range, rangeIndex) => spawnMatchWorker(
+        ['--method', method, '--seed', String(seed), '--start-round', String(range.startRound),
+            '--rounds', String(range.rounds), '--out', outPath, ...passThroughArgs],
+        rangeOutPaths[rangeIndex], () => batchProgress.report(++roundsDone, () => `workers ${ranges.length}`))));
+
+    const partialPath = `${outPath}.partial`;
+    const stream = fs.createWriteStream(partialPath);
+    await writeChunk(stream, '[\n');
+    let written = 0;
+    for (const rangeOutPath of rangeOutPaths) {
+        const lineReader = readline.createInterface({ input: fs.createReadStream(rangeOutPath), crlfDelay: Infinity });
+        for await (const roundText of lineReader) {
+            if (!roundText) continue;
+            if (written > 0) await writeChunk(stream, ',\n');
+            await writeChunk(stream, roundText);
+            written += 1;
+        }
+    }
     await writeChunk(stream, '\n]\n');
-    await new Promise((resolve, reject) => stream.end((error) => error ? reject(error) : resolve()));
+    await endStream(stream);
+    fs.rmSync(scratchDir, { recursive: true, force: true });
+    if (written !== rounds) throw new Error(`Workers wrote ${written} rounds, expected ${rounds}; ${partialPath} left for inspection`);
+    fs.renameSync(partialPath, outPath);
+    return written;
+}
+
+async function dealRounds(method, rounds, outPath, seed, startRound) {
+    if (gameConfig.config.winProbabilityMethod !== method) {
+        throw new Error(`winProbabilityMethod is "${gameConfig.config.winProbabilityMethod}", expected "${method}"`);
+    }
+    if (!MATCH_METHODS.includes(method)) {
+        throw new Error(`Refusing method "${method}"`);
+    }
+    const workers = Number(argValue('--workers') || '1');
+    if (!Number.isSafeInteger(workers) || workers < 1) throw new Error('--workers must be a positive integer');
+    if (workers > 1 && seed === null) throw new Error('--workers needs --seed');
+    gameConfig.config.wildCardCount = 2;
+    window.NETEV_USE_TIERED2_FORMULA = method === 'netEV';
+
+    await loadMethodTable(method);
+    const workerOutPath = argValue('--worker-out');
+    if (workerOutPath) {
+        await runBatchWorker(seed, startRound, rounds, workerOutPath);
+        return;
+    }
+    const metadataPath = outPath.replace(/\.json$/i, '') + '.meta.json';
+    const batchMetadata = runMetadata({ method, seed, rounds, startRound, workers });
+
+    fs.mkdirSync(path.dirname(outPath), { recursive: true });
+    const started = Date.now();
+    const batchProgress = runProgress(`Batch ${method}`, rounds, outPath.replace(/\.json$/i, '') + '_progress.txt');
+    let written = 0;
+    let failures = 0;
+
+    if (workers > 1) {
+        written = await dealRoundsWithWorkers(method, seed, startRound, rounds, workers, outPath, batchProgress);
+    } else {
+        const stream = fs.createWriteStream(outPath);
+        await writeChunk(stream, '[\n');
+        failures = await dealRoundRange(seed, startRound, rounds, async (roundText, failuresSoFar) => {
+            if (written > 0) await writeChunk(stream, ',\n');
+            await writeChunk(stream, roundText);
+            written += 1;
+            batchProgress.report(written, () => `failures ${failuresSoFar}`);
+        });
+        await writeChunk(stream, '\n]\n');
+        await endStream(stream);
+    }
     console.log(`Wrote ${written} rounds to ${outPath}`);
     const wallSeconds = (Date.now() - started) / 1000;
     fs.writeFileSync(metadataPath, JSON.stringify({ ...batchMetadata, failures, wallSeconds }, null, 2) + '\n');
