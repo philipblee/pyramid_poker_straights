@@ -4,10 +4,13 @@
 //   node scripts/deal-lookup-rounds.js --write-netev <hand_tuple_lookup.csv> <netEV_lookup_table.csv>
 //   node scripts/deal-lookup-rounds.js --match A,B --rounds N --seed S [--start-round R] [--workers W]
 //   --cdf-arrays <path>  CDF arrays for --method cdf and --test-all (default data/cdf_arrays_netev.json)
+//   --cdf-arrays-b <path> --match only, B must be cdf: B's CDF arrays (A keeps --cdf-arrays), e.g. --match cdf,cdf
 //   --seed S             seeded deals: round r's deck comes from a PRNG keyed by (S, r) (batch path only;
 //                        the browser keeps Math.random). --start-round R numbers the first round R (default 0).
 // Batch runs also write <out>.meta.json (method, seed, rounds, git commit, table sha256s, node version, timestamp).
 // --match writes data/matches/match_<A>_vs_<B>_seed<S>_<N>[_start<R>].{json,csv}; pool batches with scripts/pool-matches.js.
+//   A cdf player is labelled cdf-<run> in the file name, <run> from its arrays' meta.run, with netev shown as gen0
+//   (e.g. match_cdf-gen1_vs_cdf-gen0_...).
 
 const fs = require('fs');
 const os = require('os');
@@ -239,6 +242,16 @@ function loadCdfArrays() {
     console.log(`CDF arrays loaded from ${cdfArraysPath} (${cdfLookup.cdfJson.meta.run}, ${cdfLookup.cdfJson.meta.mode}; keys ${keyCounts})`);
 }
 
+// --match --cdf-arrays-b: B's CDF arrays in a second table, swapped into cdfLookup for B's solves
+function loadCdfArraysB() {
+    const cdfArraysPath = path.resolve(REPO, argValue('--cdf-arrays-b'));
+    const cdfTableB = new CdfLookupTable();
+    cdfTableB.loadFromJson(JSON.parse(fs.readFileSync(cdfArraysPath, 'utf8')));
+    tableFilesRead.add(cdfArraysPath);
+    console.log(`CDF arrays B loaded from ${cdfArraysPath} (${cdfTableB.cdfJson.meta.run}, ${cdfTableB.cdfJson.meta.mode})`);
+    return { cdfTableB, cdfArraysPathB: cdfArraysPath };
+}
+
 async function loadMethodTable(method) {
     if (method === 'empirical') {
         const ok = await initializeEmpiricalWinProbability();
@@ -391,15 +404,22 @@ function dealMatchHands(seed, roundIndex) {
 }
 
 // Solve one hand with one method: the solver reads gameConfig.config.winProbabilityMethod,
-// so set it (and the batch netEV formula flag) for this solve only, on a copy of the cards
-function solveWithMethod(dealtCards, method) {
+// so set it (and the batch netEV formula flag) for this solve only, on a copy of the cards.
+// cdfTable (optional): its arrays replace cdfLookup's, which the solver reads, for this solve only
+function solveWithMethod(dealtCards, method, cdfTable = null) {
     if (window.WIN_PROB_OVERRIDE !== undefined) {
         throw new Error(`window.WIN_PROB_OVERRIDE is set (${window.WIN_PROB_OVERRIDE}); it would override the match method`);
     }
     const savedMethod = gameConfig.config.winProbabilityMethod;
     const savedFormulaFlag = window.NETEV_USE_TIERED2_FORMULA;
+    const savedCdfJson = cdfLookup.cdfJson;
+    const savedPrefixSums = cdfLookup.prefixSums;
     gameConfig.config.winProbabilityMethod = method;
     window.NETEV_USE_TIERED2_FORMULA = method === 'netEV';
+    if (cdfTable) {
+        cdfLookup.cdfJson = cdfTable.cdfJson;
+        cdfLookup.prefixSums = cdfTable.prefixSums;
+    }
     try {
         const cardsCopy = dealtCards.map((card) => ({ ...card }));
         const solved = findBestSetup(cardsCopy, { collectTopArrangements: false });
@@ -410,6 +430,8 @@ function solveWithMethod(dealtCards, method) {
     } finally {
         gameConfig.config.winProbabilityMethod = savedMethod;
         window.NETEV_USE_TIERED2_FORMULA = savedFormulaFlag;
+        cdfLookup.cdfJson = savedCdfJson;
+        cdfLookup.prefixSums = savedPrefixSums;
     }
 }
 
@@ -437,10 +459,11 @@ function scoreTable(handStats, seatSolutions) {
 
 // One deal: 12 solves (each hand by A and by B), two tables. Orientation 1: seats 1-3 A, seats 4-6 B;
 // orientation 2 swaps the methods. Each hand is played once by A and once by B.
-function playMatchDeal(methodA, methodB, seed, roundIndex, handStats) {
+// cdfTableB (optional): B's CDF arrays, from --cdf-arrays-b
+function playMatchDeal(methodA, methodB, seed, roundIndex, handStats, cdfTableB) {
     const dealtHands = dealMatchHands(seed, roundIndex);
     const solvesA = dealtHands.map((dealtCards) => solveWithMethod(dealtCards, methodA));
-    const solvesB = dealtHands.map((dealtCards) => solveWithMethod(dealtCards, methodB));
+    const solvesB = dealtHands.map((dealtCards) => solveWithMethod(dealtCards, methodB, cdfTableB));
     const firstHalf = (seatIndex) => seatIndex < MATCH_SEAT_COUNT / 2;
     const orientation1Scores = scoreTable(handStats, dealtHands.map((_, seatIndex) => firstHalf(seatIndex) ? solvesA[seatIndex] : solvesB[seatIndex]));
     const orientation2Scores = scoreTable(handStats, dealtHands.map((_, seatIndex) => firstHalf(seatIndex) ? solvesB[seatIndex] : solvesA[seatIndex]));
@@ -469,10 +492,10 @@ function playMatchDeal(methodA, methodB, seed, roundIndex, handStats) {
 
 // Play rounds [startRound, startRound + rounds) in this process; each deal goes to onDeal.
 // Yields to the event loop between deals so worker progress messages are sent as deals complete.
-async function playMatchRange(methodA, methodB, seed, startRound, rounds, onDeal) {
+async function playMatchRange(methodA, methodB, seed, startRound, rounds, onDeal, cdfTableB) {
     const handStats = new PlayHandStats();
     for (let offset = 0; offset < rounds; offset++) {
-        onDeal(playMatchDeal(methodA, methodB, seed, startRound + offset, handStats));
+        onDeal(playMatchDeal(methodA, methodB, seed, startRound + offset, handStats, cdfTableB));
         await new Promise((resolve) => setImmediate(resolve));
     }
 }
@@ -505,13 +528,13 @@ function runningMatchTally() {
 
 // Child process for --workers: plays its round range, writes one JSON line per deal,
 // and sends each finished deal to the parent for its combined progress line
-async function runMatchWorker(methodA, methodB, seed, startRound, rounds, workerOutPath) {
+async function runMatchWorker(methodA, methodB, seed, startRound, rounds, workerOutPath, cdfTableB) {
     const lines = [];
     const pendingSends = [];
     await playMatchRange(methodA, methodB, seed, startRound, rounds, (matchDeal) => {
         lines.push(JSON.stringify(matchDeal));
         if (process.send) pendingSends.push(new Promise((resolve) => process.send(matchDeal, resolve)));
-    });
+    }, cdfTableB);
     fs.writeFileSync(workerOutPath, lines.join('\n') + '\n');
     await Promise.all(pendingSends);
     if (process.disconnect) process.disconnect();
@@ -556,14 +579,22 @@ async function runMatch() {
 
     gameConfig.config.wildCardCount = 2;
     for (const method of new Set(methodPair)) await loadMethodTable(method);
+    if (argValue('--cdf-arrays-b') && methodB !== 'cdf') throw new Error('--cdf-arrays-b needs method B to be cdf');
+    const { cdfTableB, cdfArraysPathB } = argValue('--cdf-arrays-b') ? loadCdfArraysB() : { cdfTableB: null, cdfArraysPathB: null };
 
     const workerOutPath = argValue('--worker-out');
     if (workerOutPath) {
-        await runMatchWorker(methodA, methodB, seed, startRound, rounds, workerOutPath);
+        await runMatchWorker(methodA, methodB, seed, startRound, rounds, workerOutPath, cdfTableB);
         return;
     }
-    const fileStem = `match_${methodA}_vs_${methodB}_seed${seed}_${rounds}${startRound > 0 ? `_start${startRound}` : ''}`;
-    const matchProgress = runProgress(`Match ${methodA} vs ${methodB}`, rounds, path.join(MATCH_DIR, `${fileStem}_progress.txt`));
+    const cdfArraysPathA = path.resolve(REPO, argValue('--cdf-arrays') || 'data/cdf_arrays_netev.json');
+    // display alias only: the netev seed table is generation 0 of the self-play loop
+    const cdfRunLabel = (cdfRun) => cdfRun === 'netev' ? 'gen0' : cdfRun;
+    const playerLabel = (method, cdfTable) => method === 'cdf' ? `cdf-${cdfRunLabel((cdfTable || cdfLookup).cdfJson.meta.run)}` : method;
+    const labelA = playerLabel(methodA, null);
+    const labelB = playerLabel(methodB, cdfTableB);
+    const fileStem = `match_${labelA}_vs_${labelB}_seed${seed}_${rounds}${startRound > 0 ? `_start${startRound}` : ''}`;
+    const matchProgress = runProgress(`Match ${labelA} vs ${labelB}`, rounds, path.join(MATCH_DIR, `${fileStem}_progress.txt`));
     const matchTally = runningMatchTally();
     const recordFinishedDeal = (matchDeal) => {
         matchTally.add(matchDeal);
@@ -572,6 +603,8 @@ async function runMatch() {
 
     const matchMetadata = runMetadata({
         methodA, methodB, seed, rounds, startRound, endRound: startRound + rounds - 1, workers,
+        cdfArraysA: methodA === 'cdf' ? path.relative(REPO, cdfArraysPathA).replace(/\\/g, '/') : null,
+        cdfArraysB: methodB === 'cdf' ? path.relative(REPO, cdfArraysPathB || cdfArraysPathA).replace(/\\/g, '/') : null,
         scoring: 'js/stats/play-hand-stats.js calculateHeadToHeadScoring, roundScore units; per point = /5',
         notes: AUTOMATICS_NOTE
     });
@@ -581,12 +614,12 @@ async function runMatch() {
         await playMatchRange(methodA, methodB, seed, startRound, rounds, (matchDeal) => {
             matchDeals.push(matchDeal);
             recordFinishedDeal(matchDeal);
-        });
+        }, cdfTableB);
     } else {
         const scratchDir = fs.mkdtempSync(path.join(os.tmpdir(), 'pyramid-match-'));
         const ranges = workerRanges(startRound, rounds, workers);
         const rangeOutPaths = ranges.map((range) => path.join(scratchDir, `rounds_${range.startRound}.jsonl`));
-        const passThroughArgs = ['--cdf-arrays'].flatMap((flag) => argValue(flag) ? [flag, argValue(flag)] : []);
+        const passThroughArgs = ['--cdf-arrays', '--cdf-arrays-b'].flatMap((flag) => argValue(flag) ? [flag, argValue(flag)] : []);
         await Promise.all(ranges.map((range, rangeIndex) => spawnMatchWorker(
             ['--match', `${methodA},${methodB}`, '--seed', String(seed), '--start-round', String(range.startRound),
                 '--rounds', String(range.rounds), ...passThroughArgs], rangeOutPaths[rangeIndex], recordFinishedDeal)));
@@ -613,7 +646,7 @@ async function runMatch() {
         summary
     }, null, 2) + '\n');
 
-    console.log(`\n${methodA} (A) vs ${methodB} (B), seed ${seed}, rounds ${startRound}-${startRound + rounds - 1}, workers ${workers}`);
+    console.log(`\n${labelA} (A) vs ${labelB} (B), seed ${seed}, rounds ${startRound}-${startRound + rounds - 1}, workers ${workers}`);
     console.log(`Wall ${wallSeconds.toFixed(1)}s, ${(wallSeconds / rounds).toFixed(2)}s/round`);
     console.log(formatMatchSummary(summary));
     console.log(`Tables not zero-sum: ${summary.tablesNotZeroSum}/${summary.tablesChecked}`);

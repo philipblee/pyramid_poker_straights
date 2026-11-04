@@ -1,6 +1,6 @@
 // Pool match batches from scripts/deal-lookup-rounds.js --match into one summary.
 // Usage: node scripts/pool-matches.js data/matches/match_cdf_vs_tiered2_seed1_1000.csv data/matches/match_..._start1000.csv ...
-// Each CSV needs its sibling .json (metadata). Refuses files whose method pair, seed or table files/hashes differ,
+// Each CSV needs its sibling .json (metadata). Refuses files whose method pair, CDF arrays A/B, seed or table files/hashes differ,
 // or whose rounds overlap. Warns when the game commit differs between batches.
 
 const fs = require('fs');
@@ -22,6 +22,11 @@ function poolMatches(csvPaths) {
         const { metadata } = batch;
         if (metadata.methodA !== reference.methodA || metadata.methodB !== reference.methodB) {
             throw new Error(`Refusing to pool: ${batch.csvPath} is ${metadata.methodA} vs ${metadata.methodB}, expected ${reference.methodA} vs ${reference.methodB}`);
+        }
+        // tableFiles is a sorted set, so it misses A/B swaps of the same two CDF tables (--cdf-arrays-b)
+        if (metadata.cdfArraysA !== reference.cdfArraysA || metadata.cdfArraysB !== reference.cdfArraysB) {
+            throw new Error(`Refusing to pool: ${batch.csvPath} has CDF arrays A ${metadata.cdfArraysA}, B ${metadata.cdfArraysB};` +
+                ` expected A ${reference.cdfArraysA}, B ${reference.cdfArraysB}`);
         }
         if (metadata.seed !== reference.seed) {
             throw new Error(`Refusing to pool: ${batch.csvPath} has seed ${metadata.seed}, expected ${reference.seed}`);
