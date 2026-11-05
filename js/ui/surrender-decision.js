@@ -374,7 +374,7 @@ function hideGameAreaForSurrenderedPlayer() {
     if (surrenderNotice) {
         surrenderNotice.innerHTML = `
             <span style="color: #ff6b6b; font-size: 20px; font-weight: bold;">
-                🏳️ You SURRENDERED (-10 chips penalty paid)
+                🏳️ You SURRENDERED (-${window.gameConfig?.config?.stakesSurrenderAmount ?? 10} chips penalty paid)
             </span>
         `;
         surrenderNotice.style.display = 'block';

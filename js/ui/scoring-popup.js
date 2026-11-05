@@ -89,8 +89,8 @@ async function distributeChips() {
             await firebase.database().ref(`players/${playerKey}/chips`)
                 .transaction(currentChips => (currentChips || 0) + equalShare);
 
-            // Build chip change: got equalShare back, paid ante + 10 penalty
-            const totalChange = equalShare - anteAmount - 10;
+            // Build chip change: got equalShare back, paid ante + surrender penalty
+            const totalChange = equalShare - anteAmount - (window.gameConfig?.config?.stakesSurrenderAmount ?? 10);
             chipChanges.set(playerName, totalChange);
             console.log(`⚖️ ${playerName}: share=${equalShare}, ante=${anteAmount}, penalty=10, net=${totalChange}`);
         }
@@ -159,7 +159,7 @@ async function distributeChips() {
 
         // Include surrender penalty in chip delta so sidebar / history totals match
         const surrendered = window.game.surrenderDecisions?.get(playerName) === 'surrender';
-        const surrenderPenalty = surrendered ? -10 : 0;
+        const surrenderPenalty = surrendered ? -(window.gameConfig?.config?.stakesSurrenderAmount ?? 10) : 0;
 
         const totalChange = payout + potWin - anteAmount + surrenderPenalty;
         chipChanges.set(playerName, totalChange);
@@ -1093,7 +1093,7 @@ function showRoundSummaryForChips(game, surrenderDecisions, pot, winners, potSha
 
             const payout = (playerTotals[name] || 0) * multiplier;
             const potWin = winners.includes(name) ? Math.floor(pot / winners.length) : 0;
-            const surrenderPenalty = window.game.surrenderDecisions?.get(name) === 'surrender' ? -10 : 0;
+            const surrenderPenalty = window.game.surrenderDecisions?.get(name) === 'surrender' ? -(window.gameConfig?.config?.stakesSurrenderAmount ?? 10) : 0;
 
             const payoutDisplay = payout !== 0 ? (payout > 0 ? `+${payout}` : payout) : '-';
             const potDisplay = potWin > 0 ? `+${potWin}` : '-';
