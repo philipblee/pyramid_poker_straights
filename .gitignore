@@ -11,3 +11,8 @@ tests/
 __pycache__/
 
 data/matches/
+data/kitty_rollout_*.csv
+data/kicker_gap_500*
+data/audit_pruning_cdf.jsonl
+data/cdf_loss_vs_static_penalty_netev.csv
+data/tiered2_vs_cdf_win_probability.csv
