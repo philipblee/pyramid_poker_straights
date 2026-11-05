@@ -694,7 +694,7 @@ function saveTableSettings() {
         // cdf is not offered in table settings yet; when it is, setting it here needs ensureCdfLoaded()
         window.gameConfig.config.winProbabilityMethod = tableSettings.winProbabilityMethod;
         window.gameConfig.config.automaticsAllowed = tableSettings.automaticsAllowed;
-        window.gameConfig.findAutoEnabled = tableSettings.findAutoEnabled;
+        window.gameConfig.config.findAutoEnabled = tableSettings.findAutoEnabled;
         console.log('✅ Synced all settings to gameConfig');
     }
 
@@ -726,13 +726,16 @@ function saveTableSettings() {
             .catch(err => console.error('❌ Error saving settings:', err));
     }
 
-
+    if (currentTable) {
+        currentTable.settings = { ...tableSettings };
+    }
 
     // Update the display
     updateTableDisplay();
 
     // Close modal
     closeTableSettings();
+    console.log('✅ Table settings saved:', tableSettings);
 }
 
 // Listen for settings changes from owner
@@ -767,36 +770,6 @@ function setupListenForSettingsChanges(tableId) {
                 updateTableDisplay();
             }
         });
-}
-
-// Close, save, and update functions
-function closeTableSettings() {
-    document.getElementById('tableSettingsModal').style.display = 'none';
-}
-
-function saveTableSettings() {
-    tableSettings.rounds = parseInt(document.getElementById('tableRounds').value);
-    tableSettings.winProbabilityMethod = document.getElementById('winProbabilityMethod').value;
-    tableSettings.wildCardCount = parseInt(document.getElementById('tableWildCardCounts').value);
-    tableSettings.computerPlayers = parseInt(document.getElementById('tableComputerPlayers').value);
-
-    // 🔧 FIX: Sync to gameConfig immediately
-    if (window.gameConfig) {
-        window.gameConfig.config.rounds = tableSettings.rounds;
-        // cdf is not offered in table settings yet; when it is, setting it here needs ensureCdfLoaded()
-        window.gameConfig.config.winProbabilityMethod = tableSettings.winProbabilityMethod;
-        window.gameConfig.config.wildCardCount = tableSettings.wildCardCount;
-        window.gameConfig.config.computerPlayers = tableSettings.computerPlayers;
-        console.log('✅ Synced rounds to gameConfig:', tableSettings.rounds);
-    }
-
-    if (currentTable) {
-        currentTable.settings = { ...tableSettings };
-    }
-
-    updateTableDisplay();
-    closeTableSettings();
-    console.log('✅ Table settings saved:', tableSettings);
 }
 
 function updateAiPlayersDisplay(value) {
