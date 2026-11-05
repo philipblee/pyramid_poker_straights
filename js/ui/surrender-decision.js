@@ -383,7 +383,7 @@ function hideGameAreaForSurrenderedPlayer() {
 }
 
 async function collectSurrenderPenalties() {
-    const surrenderPenalty = window.gameConfig?.config?.stakesSurrenderAmount || 10;
+    const surrenderPenalty = window.gameConfig?.config?.stakesSurrenderAmount ?? 10;
     const tableId = window.game?.currentTableId;
 
     if (!tableId) {

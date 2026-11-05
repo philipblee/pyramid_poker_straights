@@ -658,8 +658,8 @@ function openTableSettings() {
     // Populate current settings (all 8)
     document.getElementById('tableRounds').value = tableSettings.rounds || 3;
     document.getElementById('tableWildCardCounts').value = tableSettings.wildCardCount || 2;
-    document.getElementById('stakesAnteAmount').value = tableSettings.stakesAnteAmount || 10;
-    document.getElementById('stakesSurrenderAmount').value = tableSettings.stakesSurrenderAmount || 10;
+    document.getElementById('stakesAnteAmount').value = tableSettings.stakesAnteAmount ?? 10;
+    document.getElementById('stakesSurrenderAmount').value = tableSettings.stakesSurrenderAmount ?? 10;
     document.getElementById('stakesMultiplierAmount').value = tableSettings.stakesMultiplierAmount || 2;
     document.getElementById('tableComputerPlayers').value = tableSettings.computerPlayers || 1;
     document.getElementById('winProbabilityMethod').value = tableSettings.winProbabilityMethod || 'netEV';

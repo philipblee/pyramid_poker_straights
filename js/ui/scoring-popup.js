@@ -80,7 +80,7 @@ async function distributeChips() {
     if (allSurrendered) {
         console.log('⚖️ All players surrendered - splitting pot equally');
         const equalShare = Math.floor(pot / allPlayerNames.length);
-        const anteAmount = window.gameConfig?.config?.anteAmount || 10;
+        const anteAmount = window.gameConfig?.config?.stakesAnteAmount ?? 10;
         const chipChanges = new Map();
 
         for (const playerName of allPlayerNames) {
@@ -152,7 +152,7 @@ async function distributeChips() {
     }
     // Build chip changes map (AFTER the update loop)
     const chipChanges = new Map();
-    const anteAmount = window.gameConfig?.config?.anteAmount || 10;
+    const anteAmount = window.gameConfig?.config?.stakesAnteAmount ?? 10;
     for (const [playerName, netPoints] of Object.entries(playerTotals)) {
         const payout = netPoints * multiplier;
         const potWin = winners.includes(playerName) ? potShare : 0;
@@ -1066,7 +1066,7 @@ function showRoundSummaryForChips(game, surrenderDecisions, pot, winners, potSha
     // === Show Round Chip Summary (matching original design) ===
     if (chipChanges && chipChanges.size > 0) {
         const multiplier = window.gameConfig?.config?.stakesMultiplierAmount || 1;
-        const ante = -1 * window.gameConfig?.config?.stakesAnteAmount || 10;
+        const ante = -(window.gameConfig?.config?.stakesAnteAmount ?? 10);
 
         let summaryHTML = `
             <div style="margin: 0px 0 20px 0;">

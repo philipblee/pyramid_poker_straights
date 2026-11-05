@@ -335,7 +335,7 @@ PyramidPoker.prototype.initializeTournament = function() {
 
 
 PyramidPoker.prototype.collectAntes = async function() {
-        const anteAmount = window.gameConfig?.config?.stakesAnteAmount || 0;
+        const anteAmount = window.gameConfig?.config?.stakesAnteAmount ?? 0;
 
         if (anteAmount === 0) return;
 

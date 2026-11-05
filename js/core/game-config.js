@@ -35,7 +35,7 @@ class GameConfig {
             // stakes:
             stakesAnteAmount: 10,           // 0, 10, 20, etc.
             stakesMultiplierAmount: 2,      // 0, 1, 2, 3, etc.
-            stakesSurrenderAmount: 0,      // 10, 20, etc.
+            stakesSurrenderAmount: 10,     // 0, 10, 20, etc.
 
             // countdown:
             countdownTime: 5,              // 10, 20, 30, etc.
