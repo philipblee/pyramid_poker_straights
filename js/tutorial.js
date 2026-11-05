@@ -303,7 +303,7 @@ class Tutorial {
                 <h4 style="margin-top: 30px;">🎯 Key Points</h4>
                 <ul>
                     <li><strong>Automatic wins</strong> against any regular arrangement</li>
-                    <li>Higher automatic wins (Three Full House > Dragon > Three-Flush > Three-Straight)</li>
+                    <li>Higher automatic wins (Three Full House > Dragon > Three-Straight > Three-Flush)</li>
                     <li>Use <strong>FIND-AUTO</strong> button to automatically find automatics</li>
                     <li><strong>Wild cards</strong> can help complete automatics</li>
                 </ul>

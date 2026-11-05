@@ -7,8 +7,8 @@
 const AUTOMATIC_TYPES = {
     'three-full-houses': 4,  // Highest
     'dragon': 3,
-    'three-flush': 2,
-    'three-straight': 1     // Lowest
+    'three-straight': 2,
+    'three-flush': 1        // Lowest
 };
 
 /**
@@ -24,11 +24,11 @@ function validateAutomaticArrangement(arrangement) {
     if (hasDragon(arrangement)) {
         return { type: 'dragon', precedence: AUTOMATIC_TYPES['dragon'] };
     }
-    if (hasThreeFlush(arrangement)) {
-        return { type: 'three-flush', precedence: AUTOMATIC_TYPES['three-flush'] };
-    }
     if (hasThreeStraight(arrangement)) {
         return { type: 'three-straight', precedence: AUTOMATIC_TYPES['three-straight'] };
+    }
+    if (hasThreeFlush(arrangement)) {
+        return { type: 'three-flush', precedence: AUTOMATIC_TYPES['three-flush'] };
     }
     return null; // No automatic
 }
@@ -472,7 +472,7 @@ function findAndArrangeBestAutomatic(allCards) {
     }
 
     // Pick highest precedence
-    const precedenceOrder = ['three-full-houses', 'dragon', 'three-flush', 'three-straight'];
+    const precedenceOrder = ['three-full-houses', 'dragon', 'three-straight', 'three-flush'];
     const bestAutomatic = precedenceOrder.find(type => possibleAutomatics.includes(type));
 
     // Arrange cards for that automatic

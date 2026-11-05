@@ -1333,8 +1333,8 @@ class PyramidPoker {
         const automaticRanking = {
             'three-full-houses': 4,
             'dragon': 3,
-            'three-flush': 2,
-            'three-straight': 1
+            'three-straight': 2,
+            'three-flush': 1
         };
 
         // Group players by automatic type
