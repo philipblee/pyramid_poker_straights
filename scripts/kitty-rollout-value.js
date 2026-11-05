@@ -3,7 +3,9 @@
 // Usage:
 //   node scripts/kitty-rollout-value.js --seed S --round R --seat I [--cdf-arrays <json>] [--sampling-seed T]
 //        [--k-nowild 100] [--k-onewild 10] [--k-twowild 1] [--out data/kitty_rollout_seed<S>.csv]
-//   Batch: --rounds N (rounds R..R+N-1), --seat all (every seat), --max-per-wild M (at most M hands per hero wild count).
+//   Batch: --rounds N (rounds R..R+N-1), --seat all (every seat), --max-per-wild M (at most M hands per hero wild count),
+//   --hero-wilds W (only hands with W wilds in the 13; others skipped silently),
+//   --one-trip (only no-wild hands with exactly one rank held 3 times, no rank held 4+ and no 5-card straight flush).
 // Hand: seat I's first 13 cards of round R's seeded deal (same PRNG and dealing as scripts/deal-lookup-rounds.js --match).
 //   Hands with 2 wilds in the 13 are skipped (always play).
 // Unseen pool: the 106-card deck minus the hero's 13 cards (93 cards: other seats, the 4 undealt cards, unseen wilds).
@@ -15,6 +17,9 @@
 //   (stratum weights renormalized to sum to 1).
 // Score per kitty: findBestSetup(17 cards).arrangement.score (post-kicker cdf expected points) with --cdf-arrays
 //   (default data/cdf_arrays_netev.json, the gen0 table).
+// Field: the table's meta.field (which hands its opponents are; export_cdf_json.py --field). Tables exported before the
+//   tag existed (gen0-gen3) have none and are all-play (every seat played every hand), so a missing tag reads all-play.
+//   The table and field are printed at start and written to every CSV row.
 // Output, one CSV row per hand: stratum probabilities, samples, means; the stratified mean and its standard error
 //   (strata with one sample add no variance term and are listed in se_missing_strata); standard deviation and 10th/90th
 //   percentiles of the score across kitties, each kitty weighted by its stratum probability / samples; solve times.
@@ -47,6 +52,8 @@ const SCRIPT_FILES = [
     'js/arrange/find-best-setup-one-wild.js', 'js/arrange/find-best-setup-two-wild.js', 'js/arrange/find-best-setup.js',
     'js/stats/play-hand-stats.js'
 ];
+// Field of tables exported before meta.field existed (gen0-gen3): every seat played every hand
+const UNTAGGED_FIELD = 'all-play';
 const SUIT_LETTERS = { '♠': 'S', '♥': 'H', '♦': 'D', '♣': 'C' };
 
 function argValue(flag) {
@@ -80,8 +87,11 @@ function loadGame(cdfArraysPath) {
     gameConfig.config.winProbabilityMethod = 'cdf';
     window.NETEV_USE_TIERED2_FORMULA = false;
     if (window.WIN_PROB_OVERRIDE !== undefined) throw new Error('window.WIN_PROB_OVERRIDE is set');
+    const fieldTag = cdfLookup.cdfJson.meta.field;
     return {
         run: cdfLookup.cdfJson.meta.run,
+        field: fieldTag || UNTAGGED_FIELD,
+        fieldSource: fieldTag ? 'meta.field' : 'no meta.field, untagged tables are all-play',
         sha256: crypto.createHash('sha256').update(cdfArraysBytes).digest('hex')
     };
 }
@@ -153,6 +163,30 @@ function solveScore(seventeenCards) {
 }
 
 // Weighted quantile: first score whose cumulative weight reaches q
+const RANK_VALUES = { J: 11, Q: 12, K: 13, A: 14 };
+
+// No wilds, exactly one rank held 3 times, no rank held 4+, no 5-card straight flush (ace high or low)
+function isOneTripHand(heroCards) {
+    if (heroCards.some((card) => card.isWild)) return false;
+    const rankCounts = new Map();
+    heroCards.forEach((card) => rankCounts.set(card.rank, (rankCounts.get(card.rank) || 0) + 1));
+    const counts = [...rankCounts.values()];
+    if (counts.some((count) => count >= 4) || counts.filter((count) => count === 3).length !== 1) return false;
+    const suitRanks = new Map();
+    for (const card of heroCards) {
+        const rankValue = RANK_VALUES[card.rank] || Number(card.rank);
+        if (!suitRanks.has(card.suit)) suitRanks.set(card.suit, new Set());
+        suitRanks.get(card.suit).add(rankValue);
+        if (rankValue === 14) suitRanks.get(card.suit).add(1);
+    }
+    for (const ranks of suitRanks.values()) {
+        for (let low = 1; low <= 10; low++) {
+            if ([0, 1, 2, 3, 4].every((step) => ranks.has(low + step))) return false;
+        }
+    }
+    return true;
+}
+
 function weightedQuantile(weightedScores, quantile) {
     const sorted = [...weightedScores].sort((a, b) => a.score - b.score);
     let cumulative = 0;
@@ -231,7 +265,7 @@ function rolloutHand(seed, roundIndex, seat, heroCards, fullDeck, samplingSeed, 
     return row;
 }
 
-const CSV_COLUMNS = ['seed', 'round', 'seat', 'hero_wilds', 'hand', 'sampling_seed', 'cdf_arrays_run', 'cdf_arrays_sha256',
+const CSV_COLUMNS = ['seed', 'round', 'seat', 'hero_wilds', 'hand', 'sampling_seed', 'cdf_arrays_run', 'cdf_arrays_sha256', 'field',
     'mean', 'se', 'sd', 'p10', 'p90', 'omitted_mass', 'se_missing_strata',
     'p_k0', 'p_k1', 'p_k2', 'n_k0', 'n_k1', 'n_k2', 'mean_k0', 'mean_k1', 'mean_k2',
     'solves', 'solve_seconds', 'solve_ms_k0', 'solve_ms_k1', 'solve_ms_k2', 'wall_seconds'];
@@ -251,14 +285,17 @@ function main() {
     const seats = seatText === 'all' ? [...Array(SEAT_COUNT).keys()] : [integerArg('--seat', null)];
     if (seats.some((seat) => seat >= SEAT_COUNT)) throw new Error(`--seat must be 0-${SEAT_COUNT - 1} or all`);
     const maxPerWild = argValue('--max-per-wild') === null ? Infinity : integerArg('--max-per-wild', null);
+    const heroWildsFilter = argValue('--hero-wilds') === null ? null : integerArg('--hero-wilds', null);
+    const oneTripOnly = process.argv.includes('--one-trip');
     const samplingSeed = integerArg('--sampling-seed', 1);
     const samplesPerStratum = STRATUM_FLAGS.map((flag, index) => integerArg(flag, STRATUM_DEFAULTS[index]));
     const cdfArraysPath = path.resolve(REPO, argValue('--cdf-arrays') || 'data/cdf_arrays_netev.json');
     const outPath = path.resolve(REPO, argValue('--out') || `data/kitty_rollout_seed${seed}.csv`);
 
     const cdfArrays = loadGame(cdfArraysPath);
-    console.log(`CDF arrays ${cdfArraysPath} (${cdfArrays.run}, sha256 ${cdfArrays.sha256.slice(0, 16)}); ` +
-        `samples per kitty-wild stratum ${samplesPerStratum.join('/')}, sampling seed ${samplingSeed}`);
+    console.log(`Table ${cdfArraysPath} (run ${cdfArrays.run}, sha256 ${cdfArrays.sha256.slice(0, 16)}); ` +
+        `field ${cdfArrays.field} (${cdfArrays.fieldSource})`);
+    console.log(`Samples per kitty-wild stratum ${samplesPerStratum.join('/')}, sampling seed ${samplingSeed}`);
 
     const handsPerWild = [0, 0];
     const csvLines = [CSV_COLUMNS.join(',')];
@@ -271,12 +308,15 @@ function main() {
                 console.log(`round ${roundIndex} seat ${seat}: ${heroWilds} wilds, skipped (always play)`);
                 continue;
             }
+            if (heroWildsFilter !== null && heroWilds !== heroWildsFilter) continue;
+            if (oneTripOnly && !isOneTripHand(heroCards)) continue;
             if (handsPerWild[heroWilds] >= maxPerWild) continue;
             handsPerWild[heroWilds] += 1;
             const started = performance.now();
             const row = rolloutHand(seed, roundIndex, seat, heroCards, fullDeck, samplingSeed, samplesPerStratum);
             row.cdf_arrays_run = cdfArrays.run;
             row.cdf_arrays_sha256 = cdfArrays.sha256;
+            row.field = cdfArrays.field;
             row.wall_seconds = (performance.now() - started) / 1000;
             csvLines.push(CSV_COLUMNS.map((column) => csvField(row[column])).join(','));
             console.log(`round ${roundIndex} seat ${seat} w=${heroWilds}: mean ${row.mean.toFixed(3)} se ${row.se.toFixed(3)} ` +
