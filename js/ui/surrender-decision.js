@@ -259,13 +259,29 @@ function processAIDecisions() {
     });
 }
 
+// Computer play/surrender from its own first 13 dealt cards.
+// gameConfig.config.computerSurrenderLogic: 'table-size-rule' (default, recommendPlayOrSurrender) or 'simple' (old logic)
 function decideAISurrender(player) {
-    // Get player's 13 cards
     const playerData = window.game.playerHands.get(player.name);
     if (!playerData) return 'play'; // Default to play if no data
 
-    const cards = playerData.cards.slice(0, 13); // First 13 cards only
+    const thirteenCards = playerData.originalCards.slice(0, 13);
+    if (window.gameConfig?.config?.computerSurrenderLogic === 'simple') {
+        return decideAISurrenderSimple(thirteenCards);
+    }
 
+    const seatCount = window.game.playerManager.players.length;
+    try {
+        return recommendPlayOrSurrender(thirteenCards, seatCount).decision;
+    } catch (ruleError) {
+        console.warn(`AI surrender: table-size rule failed for ${player.name} (${ruleError.message}); using simple logic`);
+        remoteDebugLogger('aiSurrenderFallback', { player: player.name, seatCount, message: ruleError.message });
+        return decideAISurrenderSimple(thirteenCards);
+    }
+}
+
+// Old computer logic: play with a wild, play with 7+ high cards, otherwise 70% play
+function decideAISurrenderSimple(cards) {
     // Count wild cards
     const wildCount = cards.filter(card => card.isWild).length;
 

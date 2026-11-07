@@ -31,6 +31,7 @@ class GameConfig {
             // Advanced AI settings
             aiDifficulty: 'normal',          // 'easy', 'normal', 'hard'
             aiPersonality: 'balanced',       // 'aggressive', 'balanced', 'conservative'
+            computerSurrenderLogic: 'table-size-rule', // 'table-size-rule' (recommendPlayOrSurrender by seat count) or 'simple' (old logic)
 
             // stakes:
             stakesAnteAmount: 10,           // 0, 10, 20, etc.
