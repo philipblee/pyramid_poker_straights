@@ -2,7 +2,8 @@
 // Popup with the rule D play/surrender recommendation for the human's 13 cards (single-player kitty decision phase).
 // Needs recommendPlayOrSurrender (js/heuristics/recommend-play-or-surrender.js). Does not change the player's decision.
 
-const PLAY_RECOMMENDATION_FOOTNOTE = 'Based on analysis of 6-player tables where all players follow the same rule. Advice is a guide, not a guarantee.';
+const PLAY_RECOMMENDATION_FOOTNOTE = 'Based on analysis of 6-player tables at ante $10, surrender penalty $10 and $2 per point, where all players follow the same rule. Advice is a guide, not a guarantee.';
+const PLAY_RECOMMENDATION_STAKES_WARNING = 'This table uses different stakes, so this advice may not apply.';
 
 function createPlayRecommendationPopup() {
     if (document.getElementById('playRecommendationModal')) return;
@@ -16,6 +17,7 @@ function createPlayRecommendationPopup() {
                 </div>
                 <div class="play-recommendation-body">
                     <ul id="playRecommendationReasons" class="play-recommendation-reasons"></ul>
+                    <p id="playRecommendationStakesWarning" class="play-recommendation-footnote" style="display: none;">${PLAY_RECOMMENDATION_STAKES_WARNING}</p>
                     <p class="play-recommendation-footnote">${PLAY_RECOMMENDATION_FOOTNOTE}</p>
                 </div>
                 <div class="play-recommendation-footer">
@@ -145,6 +147,12 @@ function showPlayRecommendation() {
         reasonItem.textContent = reason;
         reasonList.appendChild(reasonItem);
     });
+
+    const tableConfig = window.gameConfig?.config;
+    const hasAnalyzedStakes = (tableConfig?.stakesAnteAmount ?? 10) === 10 &&
+        (tableConfig?.stakesSurrenderAmount ?? 10) === 10 &&
+        (tableConfig?.stakesMultiplierAmount ?? 2) === 2;
+    document.getElementById('playRecommendationStakesWarning').style.display = hasAnalyzedStakes ? 'none' : 'block';
 
     document.getElementById('playRecommendationModal').style.display = 'flex';
 }
