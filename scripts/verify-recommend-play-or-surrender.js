@@ -11,7 +11,9 @@ const vm = require('vm');
 
 const REPO = path.resolve(__dirname, '..');
 const DEFAULT_EXPORT_CSV = path.resolve(REPO, '..', 'pyramid_poker_analysis', 'data', 'selfplay', 'rule_d_decisions.csv');
-const GAME_FILES = ['js/utils.js', 'js/utilities/analysis.js', 'js/hands/card-utilities.js', 'js/heuristics/recommend-play-or-surrender.js'];
+const GAME_FILES = ['js/utils.js', 'js/utilities/analysis.js', 'js/hands/card-utilities.js', 'js/heuristics/play-surrender-cell-table.js',
+    'js/heuristics/recommend-play-or-surrender.js'];
+const SEAT_COUNT = 6;
 const SUIT_SYMBOLS = { S: '♠', H: '♥', D: '♦', C: '♣' };
 const MISMATCHES_SHOWN = 20;
 const SOURCE_GROUPS = [
@@ -99,8 +101,8 @@ function isOneTrip(row) {
 function checkRow(row) {
     const thirteenCards = cardsFromHandText(row.hand);
     const cardsBefore = JSON.stringify(thirteenCards);
-    const recommendation = recommendPlayOrSurrender(thirteenCards);
-    const reversedRecommendation = recommendPlayOrSurrender([...thirteenCards].reverse());
+    const recommendation = recommendPlayOrSurrender(thirteenCards, SEAT_COUNT);
+    const reversedRecommendation = recommendPlayOrSurrender([...thirteenCards].reverse(), SEAT_COUNT);
     const reasonsWanted = JSON.stringify(expectedReasons(row));
     return {
         row,
@@ -162,7 +164,7 @@ function wrongSizeIsRejected() {
     const seventeenCards = cardsFromHandText('S2 H3 D4 C5 S6 H7 D8 C9 S10 HJ DQ CK SA H2 D3 C4 S5');
     return [[], twelveCards, seventeenCards].every((wrongSizeHand) => {
         try {
-            recommendPlayOrSurrender(wrongSizeHand);
+            recommendPlayOrSurrender(wrongSizeHand, SEAT_COUNT);
             return false;
         } catch (sizeError) {
             return sizeError.message.includes('needs 13 cards');
