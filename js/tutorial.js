@@ -244,38 +244,17 @@ class Tutorial {
 
                 <div class="automatic-type">
                     <h4>🐉 Dragon</h4>
-                    <p>All 13 cards form a continuous sequence (e.g., 2-3-4-5-6-7-8-9-10-J-Q-K-A)</p>
+                    <p>One card of every rank: A-K-Q-J-10 in the back, 9-8-7-6-5 in the middle, 4-3-2 in the front, any suits</p>
                     <div class="hand-row">
-                        <span class="hand-label">Back:</span> 5-card straight (e.g., 2-3-4-5-6)
+                        <span class="hand-label">Back:</span> A-K-Q-J-10
                     </div>
                     <div class="hand-row">
-                        <span class="hand-label">Middle:</span> 5-card straight (e.g., 7-8-9-10-J)
+                        <span class="hand-label">Middle:</span> 9-8-7-6-5
                     </div>
                     <div class="hand-row">
-                        <span class="hand-label">Front:</span> 3-card straight (e.g., Q-K-A)
+                        <span class="hand-label">Front:</span> 4-3-2
                     </div>
                 
-                </div>
-
-                <div class="automatic-type">
-                    <h4>💧 Three-Flush</h4>
-                    <p>All three hands are <strong>flushes</strong> (5 cards same suit)</p>
-                    <div class="hand-row">
-                        <span class="hand-label">Back:</span> Flush or Straight Flush
-                    </div>
-                    <div class="hand-row">
-                        <span class="hand-label">Middle:</span> Flush or Straight Flush
-                    </div>
-                    <div class="hand-row">
-                        <span class="hand-label">Front:</span> Flush or Straight Flush
-                    </div>
-                    <div class="tutorial-example" style="margin-top: 15px;">
-                        <p><strong>Example:</strong></p>
-                        <div class="hand-row">Back: K♠ Q♠ J♠ 10♠ 9♠ (Straight Flush)</div>
-                        <div class="hand-row">Middle: A♥ J♥ 9♥ 7♥ 5♥ (Flush)</div>
-                        <div class="hand-row">Front: K♦ Q♦ 10♦ 8♦ 6♦ (Flush)</div>
-                    </div>
-                    
                 </div>
 
                 <div class="automatic-type">
@@ -296,7 +275,28 @@ class Tutorial {
                         <div class="hand-row">Middle: K♦ Q♠ J♥ 10♣ 9♦ (Straight)</div>
                         <div class="hand-row">Front: 5♥ 4♠ 3♦ 2♣ A♠ (Straight)</div>
                     </div>
-                   
+
+                </div>
+
+                <div class="automatic-type">
+                    <h4>💧 Three-Flush</h4>
+                    <p>All three hands are <strong>flushes</strong> (5 cards same suit)</p>
+                    <div class="hand-row">
+                        <span class="hand-label">Back:</span> Flush or Straight Flush
+                    </div>
+                    <div class="hand-row">
+                        <span class="hand-label">Middle:</span> Flush or Straight Flush
+                    </div>
+                    <div class="hand-row">
+                        <span class="hand-label">Front:</span> Flush or Straight Flush
+                    </div>
+                    <div class="tutorial-example" style="margin-top: 15px;">
+                        <p><strong>Example:</strong></p>
+                        <div class="hand-row">Back: K♠ Q♠ J♠ 10♠ 9♠ (Straight Flush)</div>
+                        <div class="hand-row">Middle: A♥ J♥ 9♥ 7♥ 5♥ (Flush)</div>
+                        <div class="hand-row">Front: K♦ Q♦ 10♦ 8♦ 6♦ (Flush)</div>
+                    </div>
+
                 </div>
 
 
@@ -390,7 +390,7 @@ class Tutorial {
                 <ul>
                     <li>Automatic <strong>automatically wins</strong> +3 points</li>
                     <li>If multiple Automatics are played <strong>Stronger Automatic Wins</strong> +3 points</li>
-                    <li>Automatic Ranking: Three Full House > Dragon > Three Flush > Three Straight</li>
+                    <li>Automatic Ranking: Three Full House > Dragon > Three Straight > Three Flush</li>
                     <li>If both players play the same Automatic Type, then the three hands are scored like normal</li>
                 </ul>
 
