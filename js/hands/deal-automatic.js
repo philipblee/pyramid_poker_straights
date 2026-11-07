@@ -427,6 +427,90 @@ function dealAutomatic(type) {
             {id: '9♥_17', rank: '9',  suit: '♥', value: 9,  isWild: false}
         ],
 
+        // Old greedy detector missed this: 666-33, QQQ-AA, 999-4+wild (the wild pairs the single 4)
+        'greedy-miss-three-full-houses': [
+            {id: '6♦_1',    rank: '6',  suit: '♦', value: 6,  isWild: false},
+            {id: '6♥_2',    rank: '6',  suit: '♥', value: 6,  isWild: false},
+            {id: 'WILD_3',  rank: '',   suit: '',  value: 0,  isWild: true},
+            {id: '4♣_4',    rank: '4',  suit: '♣', value: 4,  isWild: false},
+            {id: 'Q♣_5',    rank: 'Q',  suit: '♣', value: 12, isWild: false},
+            {id: '5♦_6',    rank: '5',  suit: '♦', value: 5,  isWild: false},
+            {id: 'K♥_7',    rank: 'K',  suit: '♥', value: 13, isWild: false},
+            {id: '6♦_8',    rank: '6',  suit: '♦', value: 6,  isWild: false},
+            {id: '3♦_9',    rank: '3',  suit: '♦', value: 3,  isWild: false},
+            {id: '9♣_10',   rank: '9',  suit: '♣', value: 9,  isWild: false},
+            {id: '3♥_11',   rank: '3',  suit: '♥', value: 3,  isWild: false},
+            {id: '9♠_12',   rank: '9',  suit: '♠', value: 9,  isWild: false},
+            {id: 'Q♠_13',   rank: 'Q',  suit: '♠', value: 12, isWild: false},
+            {id: 'Q♥_14',   rank: 'Q',  suit: '♥', value: 12, isWild: false},
+            {id: '9♦_15',   rank: '9',  suit: '♦', value: 9,  isWild: false},
+            {id: 'A♣_16',   rank: 'A',  suit: '♣', value: 14, isWild: false},
+            {id: 'A♣_17',   rank: 'A',  suit: '♣', value: 14, isWild: false}
+        ],
+
+        // Old greedy detector missed this: J-10-9-8-7, 10-9(wild)-8-7-6, A-2-3-4-5
+        'greedy-miss-three-straight': [
+            {id: 'J♦_1',    rank: 'J',  suit: '♦', value: 11, isWild: false},
+            {id: '5♦_2',    rank: '5',  suit: '♦', value: 5,  isWild: false},
+            {id: '10♥_3',   rank: '10', suit: '♥', value: 10, isWild: false},
+            {id: '8♣_4',    rank: '8',  suit: '♣', value: 8,  isWild: false},
+            {id: '8♠_5',    rank: '8',  suit: '♠', value: 8,  isWild: false},
+            {id: '7♥_6',    rank: '7',  suit: '♥', value: 7,  isWild: false},
+            {id: '6♥_7',    rank: '6',  suit: '♥', value: 6,  isWild: false},
+            {id: '7♣_8',    rank: '7',  suit: '♣', value: 7,  isWild: false},
+            {id: '10♦_9',   rank: '10', suit: '♦', value: 10, isWild: false},
+            {id: 'A♣_10',   rank: 'A',  suit: '♣', value: 14, isWild: false},
+            {id: '4♦_11',   rank: '4',  suit: '♦', value: 4,  isWild: false},
+            {id: 'WILD_12', rank: '',   suit: '',  value: 0,  isWild: true},
+            {id: '9♠_13',   rank: '9',  suit: '♠', value: 9,  isWild: false},
+            {id: '5♣_14',   rank: '5',  suit: '♣', value: 5,  isWild: false},
+            {id: '3♦_15',   rank: '3',  suit: '♦', value: 3,  isWild: false},
+            {id: '8♥_16',   rank: '8',  suit: '♥', value: 8,  isWild: false},
+            {id: '2♠_17',   rank: '2',  suit: '♠', value: 2,  isWild: false}
+        ],
+
+        // Old greedy detector missed this: 10 spades + 5 clubs = spade flush, spade flush, club flush (no wild)
+        'greedy-miss-three-flush': [
+            {id: '4♠_1',    rank: '4',  suit: '♠', value: 4,  isWild: false},
+            {id: 'K♦_2',    rank: 'K',  suit: '♦', value: 13, isWild: false},
+            {id: 'K♠_3',    rank: 'K',  suit: '♠', value: 13, isWild: false},
+            {id: 'A♠_4',    rank: 'A',  suit: '♠', value: 14, isWild: false},
+            {id: '5♠_5',    rank: '5',  suit: '♠', value: 5,  isWild: false},
+            {id: 'Q♦_6',    rank: 'Q',  suit: '♦', value: 12, isWild: false},
+            {id: '3♣_7',    rank: '3',  suit: '♣', value: 3,  isWild: false},
+            {id: 'K♣_8',    rank: 'K',  suit: '♣', value: 13, isWild: false},
+            {id: '5♣_9',    rank: '5',  suit: '♣', value: 5,  isWild: false},
+            {id: '5♠_10',   rank: '5',  suit: '♠', value: 5,  isWild: false},
+            {id: '8♠_11',   rank: '8',  suit: '♠', value: 8,  isWild: false},
+            {id: '2♠_12',   rank: '2',  suit: '♠', value: 2,  isWild: false},
+            {id: 'J♠_13',   rank: 'J',  suit: '♠', value: 11, isWild: false},
+            {id: 'Q♠_14',   rank: 'Q',  suit: '♠', value: 12, isWild: false},
+            {id: '4♣_15',   rank: '4',  suit: '♣', value: 4,  isWild: false},
+            {id: 'J♠_16',   rank: 'J',  suit: '♠', value: 11, isWild: false},
+            {id: '10♣_17',  rank: '10', suit: '♣', value: 10, isWild: false}
+        ],
+
+        // THREE-FLUSH with a wild to spare: 5♠ + 5♥ + 5♦ complete without it, so FIND-AUTO shows the variants scroller
+        'three-flush-spare-wild': [
+            {id: '2♠_1',    rank: '2',  suit: '♠', value: 2,  isWild: false},
+            {id: '5♠_2',    rank: '5',  suit: '♠', value: 5,  isWild: false},
+            {id: '8♠_3',    rank: '8',  suit: '♠', value: 8,  isWild: false},
+            {id: 'J♠_4',    rank: 'J',  suit: '♠', value: 11, isWild: false},
+            {id: 'K♠_5',    rank: 'K',  suit: '♠', value: 13, isWild: false},
+            {id: '3♥_6',    rank: '3',  suit: '♥', value: 3,  isWild: false},
+            {id: '6♥_7',    rank: '6',  suit: '♥', value: 6,  isWild: false},
+            {id: '9♥_8',    rank: '9',  suit: '♥', value: 9,  isWild: false},
+            {id: 'Q♥_9',    rank: 'Q',  suit: '♥', value: 12, isWild: false},
+            {id: 'A♥_10',   rank: 'A',  suit: '♥', value: 14, isWild: false},
+            {id: '2♦_11',   rank: '2',  suit: '♦', value: 2,  isWild: false},
+            {id: '5♦_12',   rank: '5',  suit: '♦', value: 5,  isWild: false},
+            {id: '8♦_13',   rank: '8',  suit: '♦', value: 8,  isWild: false},
+            {id: '10♦_14',  rank: '10', suit: '♦', value: 10, isWild: false},
+            {id: 'K♦_15',   rank: 'K',  suit: '♦', value: 13, isWild: false},
+            {id: 'WILD_16', rank: '',   suit: '',  value: 0,  isWild: true},
+            {id: '3♣_17',   rank: '3',  suit: '♣', value: 3,  isWild: false}
+        ],
+
     };
 
     const stagingArea = document.getElementById('playerHand');
@@ -442,6 +526,9 @@ function dealAutomatic(type) {
         const cardEl = createCardElement(card);
         stagingArea.appendChild(cardEl);
     });
+
+    // New hand: the first FIND-AUTO click must run the detector, not play an automatic left from the previous hand
+    window.currentAutomatic = null;
 
     // Sync playerData with dealt cards
     if (window.game) {
