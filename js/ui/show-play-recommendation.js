@@ -1,8 +1,8 @@
 // js/ui/show-play-recommendation.js
-// Popup with the rule D play/surrender recommendation for the human's 13 cards (single-player kitty decision phase).
+// Popup with the play/surrender recommendation for the human's 13 cards at this table size (single-player kitty decision phase).
 // Needs recommendPlayOrSurrender (js/heuristics/recommend-play-or-surrender.js). Does not change the player's decision.
 
-const PLAY_RECOMMENDATION_FOOTNOTE = 'Based on analysis of 6-player tables at ante $10, surrender penalty $10 and $2 per point, where all players follow the same rule. Advice is a guide, not a guarantee.';
+const PLAY_RECOMMENDATION_FOOTNOTE = 'Based on analysis of {N}-player tables at ante $10, surrender penalty $10 and $2 per point, where all players follow the same rule. Advice is a guide, not a guarantee.';
 const PLAY_RECOMMENDATION_STAKES_WARNING = 'This table uses different stakes, so this advice may not apply.';
 
 function createPlayRecommendationPopup() {
@@ -18,7 +18,7 @@ function createPlayRecommendationPopup() {
                 <div class="play-recommendation-body">
                     <ul id="playRecommendationReasons" class="play-recommendation-reasons"></ul>
                     <p id="playRecommendationStakesWarning" class="play-recommendation-footnote" style="display: none;">${PLAY_RECOMMENDATION_STAKES_WARNING}</p>
-                    <p class="play-recommendation-footnote">${PLAY_RECOMMENDATION_FOOTNOTE}</p>
+                    <p id="playRecommendationFootnote" class="play-recommendation-footnote"></p>
                 </div>
                 <div class="play-recommendation-footer">
                     <button id="playRecommendationClose" class="btn btn-secondary">Close</button>
@@ -128,9 +128,10 @@ function showPlayRecommendation() {
         return;
     }
 
+    const seatCount = window.game.playerManager.players.length;
     let recommendation;
     try {
-        recommendation = recommendPlayOrSurrender(humanHand.originalCards.slice(0, 13));
+        recommendation = recommendPlayOrSurrender(humanHand.originalCards.slice(0, 13), seatCount);
     } catch (recommendationError) {
         console.error('AI recommendation:', recommendationError.message);
         return;
@@ -153,6 +154,7 @@ function showPlayRecommendation() {
         (tableConfig?.stakesSurrenderAmount ?? 10) === 10 &&
         (tableConfig?.stakesMultiplierAmount ?? 2) === 2;
     document.getElementById('playRecommendationStakesWarning').style.display = hasAnalyzedStakes ? 'none' : 'block';
+    document.getElementById('playRecommendationFootnote').textContent = PLAY_RECOMMENDATION_FOOTNOTE.replace('{N}', seatCount);
 
     document.getElementById('playRecommendationModal').style.display = 'flex';
 }
