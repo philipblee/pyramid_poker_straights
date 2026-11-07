@@ -32,6 +32,9 @@ function initializeSurrenderDecision() {
         declareDecision(toggleBtn?.dataset.decision || currentDecision);
     });
 
+    // AI recommendation popup (js/ui/show-play-recommendation.js)
+    document.getElementById('showRecommendation')?.addEventListener('click', () => showPlayRecommendation());
+
     syncDecisionToggle();
 }
 
@@ -98,6 +101,18 @@ function showDecisionButtons() {
     // Hide Auto and Submit Hand
     if (submitHandBtn) submitHandBtn.style.display = 'none';
     if (autoArrangeBtn) autoArrangeBtn.style.display = 'none';
+
+    // AI recommendation: single-player kitty decision phase only, until the human declares
+    const recommendationBtn = document.getElementById('showRecommendation');
+    if (recommendationBtn) {
+        const humanPlayer = window.game?.playerManager.players.find(player => player.type === 'human');
+        const isRecommendationAvailable = gameConfig.config.gameMode === 'single-human' &&
+            gameConfig.config.gameVariant === 'kitty' &&
+            window.game?.tableState === TABLE_STATES.DECIDE_PLAYING &&
+            Boolean(humanPlayer) &&
+            !window.game.surrenderDecisions?.has(humanPlayer.name);
+        recommendationBtn.style.display = isRecommendationAvailable ? 'inline-block' : 'none';
+    }
     console.log('✅ Decision buttons set - PLAY/SURRENDER/DECLARE visible');
 
     // Mark buttons so we can detect if they're replaced
@@ -126,10 +141,12 @@ function hideDecisionButtons() {
     const reorderSuitBtn = document.getElementById('reorderSuit');
     const submitHandBtn = document.getElementById('submitHand');
     const autoArrangeBtn = document.getElementById('autoArrange');
+    const recommendationBtn = document.getElementById('showRecommendation');
 
     // Hide decision buttons (with null checks)
     if (toggleWrap) toggleWrap.style.display = 'none';
     if (submitBtn) submitBtn.style.display = 'none';
+    if (recommendationBtn) recommendationBtn.style.display = 'none';
     if (reorderRankBtn) reorderRankBtn.style.display = 'none';
     if (reorderSuitBtn) reorderSuitBtn.style.display = 'none';
 
@@ -221,6 +238,8 @@ function declareDecision(decision) {
     // Disable buttons after submission
     document.getElementById('decisionToggle').disabled = true;
     document.getElementById('submitDecision').disabled = true;
+    const recommendationBtn = document.getElementById('showRecommendation');
+    if (recommendationBtn) recommendationBtn.style.display = 'none';
 
     // Process AI decisions
     processAIDecisions();
