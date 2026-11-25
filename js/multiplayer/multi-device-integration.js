@@ -269,13 +269,53 @@ class MultiDeviceIntegration {
             }
         };
 
+        let missingKeys = [];
         try {
-            await this.RetrieveAllArrangementsFromFirebase();
-            console.log(`🧪 proceedToScoring arrangements loaded=${window.game.submittedHands.size} @${Date.now()}`);
-            remoteDebugLogger('proceedToScoringArrangementsLoaded', { scoringRound, arrangementCount: window.game.submittedHands.size });
+            // Owner: up to 3 server reads, 1 s apart, until every player still in the round has an arrangement.
+            // Non-owners: one read, as before (logged for comparison only)
+            const maxAttempts = window.isOwner ? 3 : 1;
+            for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+                if (attempt > 1) {
+                    await new Promise(resolve => setTimeout(resolve, 1000));
+                }
+                await this.RetrieveAllArrangementsFromFirebase();
+                const expectedKeys = await this.getExpectedArrangementKeys();
+                const loadedKeys = [...window.game.submittedHands.keys()];
+                missingKeys = expectedKeys.filter(playerName => !window.game.submittedHands.has(playerName));
+                console.log(`🧪 proceedToScoring attempt ${attempt} loaded=${loadedKeys.length} missing=${JSON.stringify(missingKeys)} @${Date.now()}`);
+                remoteDebugLogger('proceedToScoringArrangementsLoaded',
+                    { scoringRound, attempt, arrangementCount: loadedKeys.length, expectedKeys, loadedKeys, missingKeys },
+                    missingKeys.length > 0);
+                if (missingKeys.length === 0) break;
+            }
         } catch (error) {
             releaseScoringGuard(error, 'RetrieveAllArrangementsFromFirebase');
             return;
+        }
+
+        if (window.isOwner && missingKeys.length > 0) {
+            // Nothing scored or paid yet, so giving the round back is safe
+            this.lastScoringRound = previousScoringRound;
+            this.scoringBlockedRound = scoringRound;
+            remoteDebugLogger('ownerScoringBlocked', { scoringRound, missingKeys }, true);
+            firebase.database().ref(`tables/${this.tableId}/statusMessage`).set(
+                `Round ${scoringRound}: scoring paused, waiting for the arrangement from ` +
+                `${missingKeys.map(getCompactName).join(', ')}. Retrying...`);
+
+            clearTimeout(this.scoringRetryTimer);
+            this.scoringRetryTimer = setTimeout(() => {
+                if (this.tableState === TABLE_STATES.SCORING) {
+                    this.proceedToScoring();
+                }
+            }, 5000);
+            return;
+        }
+
+        // Owner was blocked earlier this round and is now scoring: clear the "scoring paused" message
+        if (window.isOwner && this.scoringBlockedRound === scoringRound) {
+            this.scoringBlockedRound = null;
+            remoteDebugLogger('ownerScoringUnblocked', { scoringRound });
+            firebase.database().ref(`tables/${this.tableId}/statusMessage`).remove();
         }
 
         if (window.game && window.game.calculateScores) {
@@ -284,6 +324,21 @@ class MultiDeviceIntegration {
             window.game.calculateScores()
                 .catch((error) => releaseScoringGuard(error, 'calculateScores'));
         }
+    }
+
+    // Players who must have an arrangement this round: everyone not surrendered in THIS round's
+    // RTDB decisions (the local surrenderDecisions map is never cleared, so it can hold stale entries)
+    async getExpectedArrangementKeys() {
+        const decisionsSnapshot = await firebase.database()
+            .ref(`tables/${this.tableId}/surrenderDecisions`)
+            .once('value');
+        const roundDecisions = decisionsSnapshot.val() || {};
+        const surrenderedNames = Object.entries(roundDecisions)
+            .filter(([, decision]) => decision === 'surrender')
+            .map(([playerKey]) => playerKey.replace(/_at_/g, '@').replace(/,/g, '.'));
+
+        return window.game.playerManager.getPlayerNames()
+            .filter(playerName => !surrenderedNames.includes(playerName));
     }
 
     // Enhanced submit button with submission coordination

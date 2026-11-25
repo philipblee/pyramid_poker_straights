@@ -114,7 +114,8 @@ async function distributeChips() {
             pot: pot,
             winners: allPlayerNames,  // ← Everyone is a winner!
             potShare: equalShare,
-            playerTotals: playerTotals
+            playerTotals: playerTotals,
+            chipBalances: new Map(ownerRefunds.map(refund => [refund.player, refund.chipsAfter]))  // owner only; empty on non-owners
         };
 
         // Clear the pot
@@ -130,6 +131,7 @@ async function distributeChips() {
     const potShare = winners.length > 0 ? Math.floor(pot / winners.length) : 0;
 
     // ONLY OWNER updates Firebase
+    const chipBalances = new Map();  // owner only: each player's balance after payout (and reload)
     if (window.isOwner) {
         // Update each player's chips
         for (const [playerName, netPoints] of Object.entries(playerTotals)) {
@@ -153,8 +155,10 @@ async function distributeChips() {
                 await firebase.database().ref(`players/${playerKey}/reloads`)
                     .transaction(current => (current || 0) + 1);
                 console.log(`🔄 ${playerName} balance below 0, reload 10,000 chips`);
+                chipBalances.set(playerName, 10000);
             } else {
                 await firebase.database().ref(`players/${playerKey}/lastKnownChips`).set(newChips);
+                chipBalances.set(playerName, newChips);
             }
         }
     }
@@ -186,12 +190,39 @@ async function distributeChips() {
         pot: pot,
         winners: winners,
         potShare: potShare,
-        playerTotals: playerTotals
+        playerTotals: playerTotals,
+        chipBalances: chipBalances
     };
 
     return chipChanges;
 
 }
+// Multi-device non-owners: take the round's financials from the owner's roundResults record.
+// Same outputs as distributeChips (lastRoundFinancial, lastRoundChipChanges, chip-change map) but no writes.
+function applyOwnerFinancials(ownerResults) {
+    const ownerPlayerResults = ownerResults.players || [];
+
+    const chipChanges = new Map(ownerPlayerResults.map(playerResult => [playerResult.name, playerResult.chipChange ?? 0]));
+    const chipBalances = new Map(ownerPlayerResults
+        .filter(playerResult => playerResult.chipBalance !== null && playerResult.chipBalance !== undefined)
+        .map(playerResult => [playerResult.name, playerResult.chipBalance]));
+
+    if (window.game) {
+        window.game.lastRoundChipChanges = chipChanges;
+    }
+
+    window.lastRoundFinancial = {
+        surrenderDecisions: window.game?.surrenderDecisions,
+        pot: ownerResults.pot || 0,
+        winners: ownerResults.winners || [],
+        potShare: ownerResults.potShare || 0,
+        playerTotals: window.game?.lastRoundTotals || {},
+        chipBalances: chipBalances
+    };
+
+    return chipChanges;
+}
+
 // SIMPLIFIED: Just delegates to ScoringUtilities (maintains backward compatibility)
 function getPointsForHand(hand, position, cardCount = null) {
     return ScoringUtilities.getPointsForHand(hand, position, cardCount);
@@ -212,7 +243,9 @@ function getCardCountFromSubmittedHands(game, playerName, position) {
 
 
 // Enhanced showScoringPopup with proper large hand support
-async function showScoringPopup(game, detailedResults, roundScores, specialPoints, roundNumber = null) {
+// ownerResults: multi-device non-owners pass the owner's roundResults record; pot, winners, chip changes
+// and balances then come from it, with no chip writes or chip reads on this device
+async function showScoringPopup(game, detailedResults, roundScores, specialPoints, roundNumber = null, ownerResults = null) {
     const popupStartTime = performance.now();
     let popupStep = 'start';
     console.log(`🧪 showScoringPopup start round=${roundNumber ?? game.currentRound}`);
@@ -284,10 +317,15 @@ async function showScoringPopup(game, detailedResults, roundScores, specialPoint
         const tableId = window.game?.currentTableId;
 
         popupStep = 'pot read';
-        const potSnapshot = await firebase.database().ref(`tables/${tableId}/pot`).once('value');
-        const pot = potSnapshot.val() || 0;
-        console.log(`🧪 showScoringPopup pot read pot=${pot} after ${(performance.now() - popupStartTime).toFixed(0)}ms`);
-        remoteDebugLogger('potRead', { pot, elapsedMs: Math.round(performance.now() - popupStartTime) });
+        let pot;
+        if (ownerResults) {
+            pot = ownerResults.pot || 0;
+        } else {
+            const potSnapshot = await firebase.database().ref(`tables/${tableId}/pot`).once('value');
+            pot = potSnapshot.val() || 0;
+            console.log(`🧪 showScoringPopup pot read pot=${pot} after ${(performance.now() - popupStartTime).toFixed(0)}ms`);
+            remoteDebugLogger('potRead', { pot, elapsedMs: Math.round(performance.now() - popupStartTime) });
+        }
         popupStep = 'render tables';
 
         window.game.currentRoundPot = pot;
@@ -299,7 +337,9 @@ async function showScoringPopup(game, detailedResults, roundScores, specialPoint
         });
 
         const maxTotal = Math.max(...activePlayers.map(name => playerTotals[name]));
-        const winners = activePlayers.filter(p => playerTotals[p] === maxTotal);
+        const winners = ownerResults
+            ? (ownerResults.winners || [])
+            : activePlayers.filter(p => playerTotals[p] === maxTotal);
 
     //    // === Show Head-to-Head Matrix ===
         showHeadToHeadMatrix(game, detailedResults, playerTotals, pot, winners);
@@ -315,9 +355,15 @@ async function showScoringPopup(game, detailedResults, roundScores, specialPoint
         // Distribute chips and then show Round Summary for Chips
         // This chart includes initial ante, pot winnings and net payouts
         popupStep = 'distributeChips';
-        const chipChanges = await distributeChips();
+        const chipChanges = ownerResults ? applyOwnerFinancials(ownerResults) : await distributeChips();
         console.log(`🧪 showScoringPopup distributeChips done after ${(performance.now() - popupStartTime).toFixed(0)}ms`);
         remoteDebugLogger('distributeChipsDone', { elapsedMs: Math.round(performance.now() - popupStartTime) });
+
+        // Owner only, last step after paying out; skipped in the history view (roundNumber passed)
+        if (window.isOwner && !roundNumber && window.gameConfig?.config?.gameDeviceMode === 'multi-device') {
+            popupStep = 'write round results';
+            await writeRoundResults(game, detailedResults, roundScores, chipChanges);
+        }
         popupStep = 'round summary';
 
         // 🔧 NEW: If all surrendered, use corrected financial data
@@ -383,23 +429,35 @@ async function showScoringPopup(game, detailedResults, roundScores, specialPoint
                 ? player.name
                 : player.name.replace(/\./g, ',').replace('@', '_at_');
 
-            // Read lastKnownChips from Firebase
-            const snapshot = await firebase.database().ref(`players/${playerKey}/lastKnownChips`).once('value');
-            const lastKnownChips = snapshot.val() || 0;
-
             // Calculate changes
             const playerTotal = playerTotals[player.name] || 0;
             const playerPayout = playerTotal * payoutMultiplier;
             const playerPotWin = finalWinners.includes(player.name) ? Math.floor(finalPot / finalWinners.length) : 0;
             const totalChange = playerPayout + playerPotWin;
 
-            // Read actual chips after distribution
-            const chipsSnapshot = await firebase.database().ref(`players/${playerKey}/chips`).once('value');
-            const actualChips = chipsSnapshot.val() || 0;
-            const beforeChips = actualChips - totalChange;  // Calculate what it was before
-
             const changeSign = totalChange >= 0 ? '+' : '';
             const changeColor = totalChange > 0 ? '#4ecdc4' : totalChange < 0 ? '#ff6b6b' : '#ffd700';
+
+            let actualChips;
+            if (ownerResults) {
+                // Balance after the owner's payout, from the owner's record (no chip reads on this device)
+                actualChips = ownerResults.players?.find(playerResult => playerResult.name === player.name)?.chipBalance ?? null;
+                if (actualChips === null) {
+                    chipLinesHTML += `<div style="margin: 5px 0;">
+                👤 ${player.name} | <span style="color: ${changeColor}">${changeSign}${totalChange}</span> (balance unavailable)
+            </div>`;
+                    continue;
+                }
+            } else {
+                // Read lastKnownChips from Firebase
+                const snapshot = await firebase.database().ref(`players/${playerKey}/lastKnownChips`).once('value');
+                const lastKnownChips = snapshot.val() || 0;
+
+                // Read actual chips after distribution
+                const chipsSnapshot = await firebase.database().ref(`players/${playerKey}/chips`).once('value');
+                actualChips = chipsSnapshot.val() || 0;
+            }
+            const beforeChips = actualChips - totalChange;  // Calculate what it was before
 
             chipLinesHTML += `<div style="margin: 5px 0;">
                 👤 ${player.name} | 💰 ${beforeChips.toLocaleString()}

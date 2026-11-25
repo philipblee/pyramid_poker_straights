@@ -167,8 +167,11 @@ PyramidPoker.prototype.startNewRound = async function() {
             await firebase.database()
                 .ref(`tables/${tableId}/surrenderDecisions`)
                 .remove();
+            await firebase.database()
+                .ref(`tables/${tableId}/roundResults`)
+                .remove();
 
-            console.log('🧹 Cleared Firebase surrender decisions for new round');
+            console.log('🧹 Cleared Firebase surrender decisions and round results for new round');
 
             // After clearing Firebase surrender decisions
             if (typeof window.cleanupDecisionListener === 'function') {
@@ -321,6 +324,7 @@ PyramidPoker.prototype.initializeTournament = function() {
         // Clear Firebase decisions (owner only)
         if (this.multiDeviceMode && window.isOwner && this.currentTableId) {
             firebase.database().ref(`tables/${this.currentTableId}/surrenderDecisions`).remove();
+            firebase.database().ref(`tables/${this.currentTableId}/roundResults`).remove();
         }
 
         this.currentRound = 1;
