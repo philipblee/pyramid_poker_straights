@@ -263,7 +263,17 @@ async function handleTableStateChange(tableState) {
         case TABLE_STATES.ROUND_COMPLETE:
 
             if (!window.isOwner) {
-                closeScoringPopup();
+                // The round is over either way: stop waiting for its results record
+                stopWaitingForRoundResults();
+                if (isScoringPopupOpen()) {
+                    closeScoringPopup();
+                } else {
+                    // No popup this round (results never arrived or failed): still advance, so this device never stays a round behind
+                    console.log(`🧪 round_complete without popup at round=${window.game?.currentRound}`);
+                    remoteDebugLogger('roundCompleteWithoutPopup', { round: window.game?.currentRound }, true);
+                    clearAllHandAreas();
+                    window.game.startNewRound();
+                }
                 const waitingEl = document.getElementById('waiting-for-table-owner');
                 if (waitingEl) waitingEl.remove();
             } else {

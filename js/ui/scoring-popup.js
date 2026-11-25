@@ -513,6 +513,13 @@ async function showScoringPopup(game, detailedResults, roundScores, specialPoint
     }
 }
 
+// The popup counts as open unless it is missing or its display is explicitly 'none'
+// (closeScoringPopup's test; also used by the non-owner ROUND_COMPLETE handler)
+function isScoringPopupOpen() {
+    const popup = document.getElementById('scoringPopup');
+    return !!popup && popup.style.display !== 'none';
+}
+
 // Close scoring popup and clear all hands for next round
 let isClosingPopup = false; // Guard against double calls
 
@@ -529,7 +536,7 @@ async function closeScoringPopup() {
     }
     
     const popup = document.getElementById('scoringPopup');
-    if (!popup || popup.style.display === 'none') {
+    if (!isScoringPopupOpen()) {
         console.log('🔍 closeScoringPopup: Popup already closed, skipping');
         return;
     }

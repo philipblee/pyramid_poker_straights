@@ -608,35 +608,67 @@ class MultiDeviceIntegration {
 
         console.log('☁️ Retrieving all dealt hands from Firebase...');
 
-        try {
+        // Up to 3 server reads, 1 s apart, until this device's own dealt hand is there
+        const myPlayerName = window.uniquePlayerName;
+        let tableDoc = null;
+        for (let attempt = 1; attempt <= 3; attempt++) {
+            try {
+                // ✅ Correct - string "6"
+                const fetchedTableDoc = await this.tableManager.tablesRef.doc(this.currentTableId.toString()).get({ source: 'server' });
+                if (fetchedTableDoc.data()?.currentGame?.dealtHands?.[myPlayerName]) {
+                    tableDoc = fetchedTableDoc;
+                    break;
+                }
+                console.error(`❌ No dealt hand for ${myPlayerName} in Firebase (attempt ${attempt})`);
+            } catch (error) {
+                console.error(`❌ Error retrieving hands from Firebase (attempt ${attempt}):`, error);
+            }
+            if (attempt < 3) {
+                remoteDebugLogger('handsFetchRetry', { attempt }, true);
+                await new Promise(resolve => setTimeout(resolve, 1000));
+            }
+        }
 
-            // ✅ Correct - string "6"
-            const tableDoc = await this.tableManager.tablesRef.doc(this.currentTableId.toString()).get();
+        if (!tableDoc) {
+            console.error('❌ No dealt hands found in Firebase');
+            remoteDebugLogger('handsFetchFailed', { round: window.game.currentRound }, true);
 
-            const dealtHands = tableDoc.data()?.currentGame?.dealtHands;
-
-            if (!dealtHands) {
-                console.error('❌ No dealt hands found in Firebase');
-                return;
+            // Never leave a previous round's hand on screen or playable
+            window.game.playerHands.clear();
+            clearAllHandAreas();
+            const statusDiv = document.getElementById('status');
+            if (statusDiv) {
+                statusDiv.innerHTML = "Couldn't load your hand for this round — please leave and resume the table.";
+            }
+        } else {
+            // Non-owners: the owner's round (stored with the dealt hands) is authoritative
+            const tableRound = tableDoc.data()?.currentGame?.round;
+            if (!window.isOwner && typeof tableRound === 'number' && tableRound !== window.game.currentRound) {
+                console.log(`🧪 roundResync at hands_dealt: local=${window.game.currentRound} table=${tableRound}`);
+                remoteDebugLogger('roundResync', { source: 'handsDealt', localRound: window.game.currentRound, ownerRound: tableRound }, true);
+                window.game.currentRound = tableRound;
             }
 
-            // Clear current hands and repopulate from Firebase
-            window.game.playerHands.clear();
+            try {
+                const dealtHands = tableDoc.data().currentGame.dealtHands;
 
-            Object.entries(dealtHands).forEach(([playerName, handData]) => {
-                window.game.playerHands.set(playerName, {
-                    cards: handData.cards,
-                    originalCards: handData.cards.map(card => ({...card})),
-                    back: [],
-                    middle: [],
-                    front: []
+                // Clear current hands and repopulate from Firebase
+                window.game.playerHands.clear();
+
+                Object.entries(dealtHands).forEach(([playerName, handData]) => {
+                    window.game.playerHands.set(playerName, {
+                        cards: handData.cards,
+                        originalCards: handData.cards.map(card => ({...card})),
+                        back: [],
+                        middle: [],
+                        front: []
+                    });
                 });
-            });
 
-            console.log(`✅ Retrieved ${Object.keys(dealtHands).length} hands from Firebase`);
-
-        } catch (error) {
-            console.error('❌ Error retrieving hands from Firebase:', error);
+                console.log(`✅ Retrieved ${Object.keys(dealtHands).length} hands from Firebase`);
+            } catch (error) {
+                console.error('❌ Error retrieving hands from Firebase:', error);
+            }
         }
 
     console.log('🔍 After Firebase retrieval - playerHands size:', window.game.playerHands.size);
