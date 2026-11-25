@@ -82,17 +82,25 @@ async function distributeChips() {
         const equalShare = Math.floor(pot / allPlayerNames.length);
         const anteAmount = window.gameConfig?.config?.stakesAnteAmount ?? 10;
         const chipChanges = new Map();
+        const ownerRefunds = [];
 
         for (const playerName of allPlayerNames) {
-            // Update chips in Firebase
-            const playerKey = playerName.replace(/\./g, ',').replace(/@/g, '_at_');
-            await firebase.database().ref(`players/${playerKey}/chips`)
-                .transaction(currentChips => (currentChips || 0) + equalShare);
+            // ONLY OWNER updates Firebase; every device builds the same chip-change map for display
+            if (window.isOwner) {
+                const playerKey = playerName.replace(/\./g, ',').replace(/@/g, '_at_');
+                const refundTransaction = await firebase.database().ref(`players/${playerKey}/chips`)
+                    .transaction(currentChips => (currentChips || 0) + equalShare);
+                ownerRefunds.push({ player: playerName, refund: equalShare, chipsAfter: refundTransaction.snapshot.val() });
+            }
 
             // Build chip change: got equalShare back, paid ante + surrender penalty
             const totalChange = equalShare - anteAmount - (window.gameConfig?.config?.stakesSurrenderAmount ?? 10);
             chipChanges.set(playerName, totalChange);
             console.log(`⚖️ ${playerName}: share=${equalShare}, ante=${anteAmount}, penalty=10, net=${totalChange}`);
+        }
+
+        if (window.isOwner) {
+            remoteDebugLogger('allSurrenderRefund', { pot, equalShare, refunds: ownerRefunds }, true);
         }
 
         // Store for summary display
