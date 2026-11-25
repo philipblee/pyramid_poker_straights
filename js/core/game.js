@@ -1111,6 +1111,36 @@ class PyramidPoker {
         updateDisplay(this);
     }
 
+    // Store this round in roundHistory and add its scores to tournamentScores and player scores, once per round.
+    // Used by calculateScores (owner / single-player) and showRoundResults (multi-device non-owners).
+    recordRoundHistory(roundScores, detailedResults) {
+        const roundAlreadyStored = this.roundHistory.some(round => round.roundNumber === this.currentRound);
+
+        if (!roundAlreadyStored) {
+            const roundData = {
+                roundNumber: this.currentRound,
+                roundScores: new Map(roundScores),
+                chipChanges: new Map(this.lastRoundChipChanges || new Map()),
+                detailedResults: [...detailedResults],
+                submittedHands: new Map(this.submittedHands),
+                timestamp: new Date()
+            };
+
+            this.roundHistory.push(roundData);
+
+            // Update tournament totals only once per round
+            roundScores.forEach((roundScore, playerName) => {
+                const currentTotal = this.tournamentScores.get(playerName) || 0;
+                this.tournamentScores.set(playerName, currentTotal + roundScore);
+            });
+
+            // Update individual round scores (keep existing for current round display)
+            roundScores.forEach((roundScore, playerName) => {
+                this.playerManager.updatePlayerScore(playerName, roundScore);
+            });
+        }
+    }
+
     async calculateScores() {
 
         const allPlayerNames = this.playerManager.getPlayerNames();
@@ -1234,39 +1264,7 @@ class PyramidPoker {
             }
         }
 
-        // NEW: Only store round history ONCE per round
-        const roundAlreadyStored = this.roundHistory.some(round => round.roundNumber === this.currentRound);
-
-//        console.log('🔍 After roundAlreadyStored check - this.maxRounds:', this.maxRounds);
-
-        if (!roundAlreadyStored) {
-            const roundData = {
-                roundNumber: this.currentRound,
-                roundScores: new Map(roundScores),
-                chipChanges: new Map(this.lastRoundChipChanges || new Map()),  // ADD THIS
-                detailedResults: [...detailedResults],
-                submittedHands: new Map(this.submittedHands),
-                timestamp: new Date()
-            };
-
-            this.roundHistory.push(roundData);
-
-            // Update tournament totals only once per round
-            roundScores.forEach((roundScore, playerName) => {
-                const currentTotal = this.tournamentScores.get(playerName) || 0;
-                this.tournamentScores.set(playerName, currentTotal + roundScore);
-            });
-
-        }
-
-//        console.log('🔍 After round history update - this.maxRounds:', this.maxRounds);
-
-        // Update individual round scores (keep existing for current round display)
-        roundScores.forEach((roundScore, playerName) => {
-            if (!roundAlreadyStored) {
-                this.playerManager.updatePlayerScore(playerName, roundScore);
-            }
-        });
+        this.recordRoundHistory(roundScores, detailedResults);
 
         // In calculateScores(), after generating detailed results
         window.game.detailedResults = detailedResults; // Store for later extraction

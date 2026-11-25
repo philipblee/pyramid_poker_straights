@@ -251,8 +251,13 @@ async function handleTableStateChange(tableState) {
             break;
 
         case TABLE_STATES.SCORING:
-            console.log('Proceeding to scoring...');
-            await window.multiDeviceIntegration.proceedToScoring();
+            if (window.isOwner) {
+                console.log('Proceeding to scoring...');
+                await window.multiDeviceIntegration.proceedToScoring();
+            } else {
+                // Non-owners don't score: they show the owner's roundResults record
+                showRoundResults();
+            }
             break;
 
         case TABLE_STATES.ROUND_COMPLETE:
