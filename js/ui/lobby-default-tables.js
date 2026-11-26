@@ -28,6 +28,7 @@ let tableSettings = {
     automaticsAllowed: 'yes',        // NEW
     autoArrangeAllowed: 'yes',       // NEW
     findAutoEnabled: 'yes',       // NEW
+    aiRecommendation: null,          // 'yes', 'no', or null = 'yes' single-human / 'no' multiple-humans (null clears a previous table's value)
     // countdown:
     countdownTime: 3,              // 10, 20, 30, etc.
     tableId: null,                   // For multiplayer table identification
@@ -170,6 +171,7 @@ const defaultTables = [
                     wildCardCount: 2,
                     maxPlayers: 6,
                     winProbabilityMethod: 'tiered2' ,
+                    aiRecommendation: 'yes',
                     findAutoEnabled: 'yes' },
         icon: '☁️'
     },

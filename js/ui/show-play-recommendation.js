@@ -120,11 +120,29 @@ function closePlayRecommendation() {
     if (recommendationModal) recommendationModal.style.display = 'none';
 }
 
+// Table setting aiRecommendation 'yes'/'no'; unset (null) means single-human tables only
+function isAiRecommendationEnabled() {
+    const tableConfig = window.gameConfig?.config;
+    if (tableConfig?.aiRecommendation === 'yes' || tableConfig?.aiRecommendation === 'no') {
+        return tableConfig.aiRecommendation === 'yes';
+    }
+    return tableConfig?.gameMode === 'single-human';
+}
+
+// Multi-device players have no type 'human': this device's player is window.uniquePlayerName
+function findRecommendationPlayer() {
+    const tablePlayers = window.game?.playerManager?.players || [];
+    if (window.game?.multiDeviceMode) {
+        return tablePlayers.find(player => player.name === window.uniquePlayerName);
+    }
+    return tablePlayers.find(player => player.type === 'human');
+}
+
 function showPlayRecommendation() {
-    const humanPlayer = window.game.playerManager.players.find(player => player.type === 'human');
+    const humanPlayer = findRecommendationPlayer();
     const humanHand = humanPlayer && window.game.playerHands.get(humanPlayer.name);
     if (!humanHand) {
-        console.error('AI recommendation: no human hand found');
+        console.error(`AI recommendation: no hand found for ${humanPlayer?.name ?? 'local player'}`);
         return;
     }
 

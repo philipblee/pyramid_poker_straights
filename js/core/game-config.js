@@ -46,6 +46,9 @@ class GameConfig {
 
             // remote debug logging (RTDB debugLogs/):
             remoteDebugLogging: 'yes',      // 'yes' or 'no' - send debug events to Firebase
+
+            // AI play/surrender recommendation button (kitty decision phase):
+            aiRecommendation: null,         // 'yes', 'no', or null = 'yes' for single-human, 'no' for multiple-humans
         };
 
 //        this.loadFromStorage();

@@ -102,17 +102,7 @@ function showDecisionButtons() {
     if (submitHandBtn) submitHandBtn.style.display = 'none';
     if (autoArrangeBtn) autoArrangeBtn.style.display = 'none';
 
-    // AI recommendation: single-player kitty decision phase only, until the human declares
-    const recommendationBtn = document.getElementById('showRecommendation');
-    if (recommendationBtn) {
-        const humanPlayer = window.game?.playerManager.players.find(player => player.type === 'human');
-        const isRecommendationAvailable = gameConfig.config.gameMode === 'single-human' &&
-            gameConfig.config.gameVariant === 'kitty' &&
-            window.game?.tableState === TABLE_STATES.DECIDE_PLAYING &&
-            Boolean(humanPlayer) &&
-            !window.game.surrenderDecisions?.has(humanPlayer.name);
-        recommendationBtn.style.display = isRecommendationAvailable ? 'inline-block' : 'none';
-    }
+    updateRecommendationButton();
     console.log('✅ Decision buttons set - PLAY/SURRENDER/DECLARE visible');
 
     // Mark buttons so we can detect if they're replaced
@@ -127,6 +117,21 @@ function showDecisionButtons() {
         const autoBtn = document.getElementById('autoArrange');
         const marker = autoBtn?.getAttribute('data-hidden-by');
     }, 2000);
+}
+
+// AI recommendation: kitty decision phase on tables that allow it (aiRecommendation), until this player declares
+function updateRecommendationButton() {
+    const recommendationBtn = document.getElementById('showRecommendation');
+    if (!recommendationBtn) return;
+
+    const humanPlayer = findRecommendationPlayer();
+    const isRecommendationAvailable = isAiRecommendationEnabled() &&
+        gameConfig.config.gameVariant === 'kitty' &&
+        window.game?.tableState === TABLE_STATES.DECIDE_PLAYING &&
+        Boolean(humanPlayer) &&
+        !window.game.surrenderDecisions?.has(humanPlayer.name);
+    recommendationBtn.style.display = isRecommendationAvailable ? 'inline-block' : 'none';
+    console.log(`🎯 AI recommendation button ${isRecommendationAvailable ? 'shown' : 'hidden'} (aiRecommendation=${gameConfig.config.aiRecommendation}, tableState=${window.game?.tableState}, player=${humanPlayer?.name})`);
 }
 
 function hideDecisionButtons() {

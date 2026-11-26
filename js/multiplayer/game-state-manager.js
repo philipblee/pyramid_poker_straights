@@ -161,6 +161,9 @@ async function handleTableStateChange(tableState) {
             if (window.game) {
                 window.game.loadCurrentPlayerHand();
 
+                // AI recommendation button is only available in DECIDE_PLAYING
+                if (typeof updateRecommendationButton === 'function') updateRecommendationButton();
+
                 // Prompt for the decision unless the local player has already declared
                 const statusDiv = document.getElementById('status');
                 if (statusDiv && !window.game.surrenderDecisions?.has(window.uniquePlayerName)) {
